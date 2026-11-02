@@ -41,9 +41,12 @@ public class User {
     @Column(name = "consent_version", length = 20)
     private String consentVersion;
 
+
+    @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
