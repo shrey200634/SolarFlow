@@ -48,7 +48,7 @@ public class AuthService {
         User user = users.findByEmail(request.email().trim().toLowerCase())
                 .filter(User::isActive)
                 .filter(u->encoder.matches(request.password() , u.getPasswordHash()))
-                .orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid User or Password "));
+                .orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Email or Password "));
 
         return new LoginResponseDTO(jwtService.generate(user), "Bearer", jwtService.expirationInSecond(),
                 new UserResponseDTO(user.getId(), user.getFullName(), user.getEmail(), user.getRole().name()));
