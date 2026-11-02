@@ -47,5 +47,10 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @PrePersist
+    void onCreate(){
+        if (createdAt ==null ) createdAt = Instant.now();
+    }
+
 
 }
