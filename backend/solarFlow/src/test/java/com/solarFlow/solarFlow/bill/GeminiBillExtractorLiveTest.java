@@ -1,5 +1,7 @@
 package com.solarFlow.solarFlow.bill;
 
+import com.solarFlow.solarFlow.bill.extraction.ExtractionResult;
+import com.solarFlow.solarFlow.bill.extraction.GeminiBillExtractor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 

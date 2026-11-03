@@ -1,5 +1,7 @@
 package com.solarFlow.solarFlow.bill;
 
+import com.solarFlow.solarFlow.bill.extraction.ExtractionResult;
+import com.solarFlow.solarFlow.bill.extraction.ExtractionValidator;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
