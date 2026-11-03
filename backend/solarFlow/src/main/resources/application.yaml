@@ -22,6 +22,8 @@ spring:
       max-request-size: 9MB
 
 app:
+  seed:
+    password: ${SEED_PASSWORD:}
   jwt:
     secret: ${JWT_KEY}
     expiry-minutes: ${JWT_EXPIRY_MINUTES:15}
