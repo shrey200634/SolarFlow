@@ -16,7 +16,14 @@ spring:
       hibernate:
         format_sql: true
 
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
+
 app:
   jwt:
     secret: ${JWT_KEY}
     expiry-minutes: ${JWT_EXPIRY_MINUTES:15}
+  storage:
+    local-dir: ${STORAGE_DIR:C:/solarflow-storage}
