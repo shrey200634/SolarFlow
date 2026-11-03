@@ -4,12 +4,14 @@ import com.solarFlow.solarFlow.auth.security.AuthUser;
 import com.solarFlow.solarFlow.bill.controller.DocumentResponseDTO;
 import com.solarFlow.solarFlow.bill.domain.DocumentStatus;
 import com.solarFlow.solarFlow.bill.domain.LeadDocument;
+import com.solarFlow.solarFlow.bill.event.DocumentUploadedEvent;          // NEW
 import com.solarFlow.solarFlow.bill.repo.LeadDocumentRepo;
 import com.solarFlow.solarFlow.bill.storage.DocumentStorage;
 import com.solarFlow.solarFlow.lead.domain.Lead;
 import com.solarFlow.solarFlow.lead.service.LeadService;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;             // NEW
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class BillDocumentService {
     private final LeadDocumentRepo documents;
     private final DocumentStorage storage;
     private final DocumentValidator validator;
+    private final ApplicationEventPublisher events;                       // NEW
 
     @Transactional
     public DocumentResponseDTO upload(UUID leadId, MultipartFile file, AuthUser actor) {
@@ -66,6 +69,10 @@ public class BillDocumentService {
             if (lead.getStatus() == LeadStatus.NEW) {
                 lead.setStatus(LeadStatus.BILL_UPLOADED);
             }
+
+            // NEW: delivered only AFTER this transaction commits (see BillExtractionListener)
+            events.publishEvent(new DocumentUploadedEvent(saved.getId()));
+
             return DocumentResponseDTO.from(saved);
         } catch (RuntimeException e) {
             storage.delete(key);
