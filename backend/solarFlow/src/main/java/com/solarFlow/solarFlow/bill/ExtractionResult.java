@@ -10,7 +10,8 @@ public record ExtractionResult(
         double overallConfidence,
         String imageQuality,      // GOOD | POOR
         String provider,
-        int schemaVersion
+        int schemaVersion,
+        String rawJson
 ) {
     public record Field<T>(T value, double confidence) { }
 }

@@ -27,3 +27,11 @@ app:
     expiry-minutes: ${JWT_EXPIRY_MINUTES:15}
   storage:
     local-dir: ${STORAGE_DIR:C:/solarflow-storage}
+
+solarflow:
+  ai:
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.6-flash}
+      base-url: https://generativelanguage.googleapis.com
+      timeout-seconds: 30
