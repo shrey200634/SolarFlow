@@ -35,3 +35,14 @@ solarflow:
       model: ${GEMINI_MODEL:gemini-3.6-flash}
       base-url: https://generativelanguage.googleapis.com
       timeout-seconds: 30
+
+  bill:
+    consumer-number-pattern: "^[0-9]{12}$"
+    tariff-pattern: "(?i)^LT.*"
+    field-confidence-threshold: 0.80
+    low-quality-threshold: 0.5
+    sanctioned-load-min-kw: 0.5
+    sanctioned-load-max-kw: 50
+    monthly-units-max: 5000
+    implied-rate-min: 2
+    implied-rate-max: 30
