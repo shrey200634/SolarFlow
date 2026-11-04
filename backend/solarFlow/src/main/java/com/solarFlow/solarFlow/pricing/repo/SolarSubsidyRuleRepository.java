@@ -23,5 +23,18 @@ public interface SolarSubsidyRuleRepository
             @Param("date") LocalDate date
     );
 
+    @Query("""
+        SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END
+        FROM SolarSubsidyRule r
+        WHERE r.active = true
+          AND (:effectiveTo IS NULL OR r.effectiveFrom <= :effectiveTo)
+          AND (r.effectiveTo IS NULL OR r.effectiveTo >= :effectiveFrom)
+        """)
+    boolean existsActiveOverlap(
+            @Param("effectiveFrom") LocalDate effectiveFrom,
+            @Param("effectiveTo") LocalDate effectiveTo
+    );
+
+    List<SolarSubsidyRule> findAllByOrderByEffectiveFromDesc();
 
 }
