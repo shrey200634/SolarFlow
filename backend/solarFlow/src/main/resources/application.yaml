@@ -48,3 +48,19 @@ solarflow:
     monthly-units-max: 5000
     implied-rate-min: 2
     implied-rate-max: 30
+
+  qualification:
+    rule-version: v1
+    survey-threshold: 70
+    min-monthly-units: 250
+    roof-area-threshold-sqft: 300
+    suitable-roof-types: RCC_FLAT,TIN_SHEET,TILED
+    min-bill-confidence: 0.80
+    weight-owner: 25
+    weight-roof-type: 15
+    weight-roof-area: 15
+    weight-units: 25
+    weight-pincode: 10
+    weight-bill-confidence: 10
+    # TEMPORARY sample list of Nagpur pincodes. Replaced by a database table in Milestone 2.
+    serviceable-pincodes: 440001,440008,440010,440012,440013,440015,440016,440022,440024,440025

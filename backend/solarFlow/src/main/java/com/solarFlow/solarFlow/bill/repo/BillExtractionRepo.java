@@ -13,4 +13,6 @@ public interface BillExtractionRepo extends JpaRepository<BillExtraction, UUID> 
     Optional<BillExtraction> findFirstByDocumentIdOrderByAttemptDesc(UUID documentId);
 
     boolean existsByDocumentIdAndAttempt(UUID documentId, int attempt);
+    Optional<BillExtraction> findFirstByDocument_Lead_IdAndConfirmedAtIsNotNullOrderByConfirmedAtDesc(UUID leadId);
+
 }
