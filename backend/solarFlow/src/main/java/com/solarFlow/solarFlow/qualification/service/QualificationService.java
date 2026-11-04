@@ -7,6 +7,7 @@ import com.solarFlow.solarFlow.lead.domain.Lead;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import com.solarFlow.solarFlow.lead.repo.LeadRepo;
 import com.solarFlow.solarFlow.lead.service.LeadService;
+import com.solarFlow.solarFlow.pincode.service.PincodeService;
 import com.solarFlow.solarFlow.qualification.controller.QualificationResultDTO;
 import com.solarFlow.solarFlow.qualification.domain.NextAction;
 import com.solarFlow.solarFlow.qualification.domain.QualificationResult;
@@ -43,6 +44,7 @@ public class QualificationService {
     private final BillExtractionRepo extractions;
     private final QualificationResultRepo results;
     private final QualificationProperties properties;
+    private final PincodeService pincodes;
 
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -84,7 +86,7 @@ public class QualificationService {
                 lead.getOwnership(),
                 lead.getRoofType(),
                 lead.getRoofAreaSqft(),
-                properties.isServiceable(lead.getPincode()),
+                pincodes.isServiceable(lead.getPincode()),
                 monthlyUnits,
                 billConfidence);
 
@@ -99,8 +101,7 @@ public class QualificationService {
                 .documentId(confirmed.getDocument().getId())
                 .build());
 
-        // Only the first qualification moves the lead. After that, a human may have decided
-        // (for example sales promoted it to a survey), and a re-run must not undo that.
+
         if (lead.getStatus() == LeadStatus.BILL_CONFIRMED) {
             lead.setStatus(outcome.nextAction() == NextAction.SURVEY_RECOMMENDED
                     ? LeadStatus.SURVEY_RECOMMENDED

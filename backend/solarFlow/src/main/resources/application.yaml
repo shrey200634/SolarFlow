@@ -62,5 +62,3 @@ solarflow:
     weight-units: 25
     weight-pincode: 10
     weight-bill-confidence: 10
-    # TEMPORARY sample list of Nagpur pincodes. Replaced by a database table in Milestone 2.
-    serviceable-pincodes: 440001,440008,440010,440012,440013,440015,440016,440022,440024,440025

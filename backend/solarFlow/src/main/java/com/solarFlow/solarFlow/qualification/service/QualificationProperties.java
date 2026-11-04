@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Set;
 
 @Component
@@ -31,13 +30,6 @@ public class QualificationProperties {
     private int weightUnits = 25;
     private int weightPincode = 10;
     private int weightBillConfidence = 10;
-
-    // TEMPORARY: replaced by a database table and admin screen in Milestone 2.
-    private Set<String> serviceablePincodes = new HashSet<>();
-
-    public boolean isServiceable(String pincode) {
-        return pincode != null && serviceablePincodes.contains(pincode.trim());
-    }
 
     public QualificationRules toRules() {
         return new QualificationRules(
