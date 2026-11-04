@@ -38,6 +38,12 @@ solarflow:
       base-url: https://generativelanguage.googleapis.com
       timeout-seconds: 30
 
+  solar-sizing:
+    annual-generation-per-kw: 1400
+    roof-area-per-kw: 100
+    economy-factor: 0.70
+    capacity-step: 0.5
+
   bill:
     consumer-number-pattern: "^[0-9]{12}$"
     tariff-pattern: "(?i)^LT.*"
