@@ -45,6 +45,7 @@ public class QualificationService {
     private final QualificationResultRepo results;
     private final QualificationProperties properties;
     private final PincodeService pincodes;
+    private final QualificationScorer scorer;
 
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -90,7 +91,7 @@ public class QualificationService {
                 monthlyUnits,
                 billConfidence);
 
-        QualificationOutcome outcome = new QualificationScorer(properties.toRules()).score(input);
+        QualificationOutcome outcome = scorer.score(input);
 
         QualificationResult saved = results.save(QualificationResult.builder()
                 .lead(lead)
