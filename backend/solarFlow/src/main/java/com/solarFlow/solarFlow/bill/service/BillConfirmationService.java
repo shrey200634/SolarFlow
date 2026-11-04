@@ -47,11 +47,8 @@ public class BillConfirmationService {
             AuthUser actor
     ) {
 
-        LeadDocument document = documents.findById(documentId)
-                .orElseThrow(BillConfirmationService::notFound);
-
         // Homeowners can only access documents belonging to their own leads.
-        leadService.findAccessible(document.getLead().getId(), actor);
+        LeadDocument document = findAccessibleDocument(documentId, actor);
 
         BillExtraction extraction = extractions
                 .findFirstByDocumentIdOrderByAttemptDesc(documentId)
@@ -92,6 +89,9 @@ public class BillConfirmationService {
             AuthUser actor
     ) {
 
+        // Ownership first: a foreign or unknown document gets the same 404 and nothing is changed.
+        findAccessibleDocument(documentId, actor);
+
         // Only these states can enter the confirmation flow.
         int updated = documents.transitionFrom(
                 documentId,
@@ -118,9 +118,6 @@ public class BillConfirmationService {
                 .orElseThrow(BillConfirmationService::notFound);
 
         Lead lead = document.getLead();
-
-        // Resource ownership check.
-        leadService.findAccessible(lead.getId(), actor);
 
         BillExtraction extraction = extractions
                 .findFirstByDocumentIdOrderByAttemptDesc(documentId)
@@ -307,6 +304,25 @@ public class BillConfirmationService {
                     "Could not read stored extraction JSON", e
             );
         }
+    }
+
+    /**
+     * Loads a document only if the actor may see its lead. A missing document and a document
+     * that belongs to someone else both produce the identical "Document not found" 404,
+     * so the API never reveals which document ids exist.
+     */
+    private LeadDocument findAccessibleDocument(UUID documentId, AuthUser actor) {
+
+        LeadDocument document = documents.findById(documentId)
+                .orElseThrow(BillConfirmationService::notFound);
+
+        try {
+            leadService.findAccessible(document.getLead().getId(), actor);
+        } catch (ResponseStatusException e) {
+            throw notFound();
+        }
+
+        return document;
     }
 
     private static ResponseStatusException notFound() {

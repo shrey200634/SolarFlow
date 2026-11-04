@@ -30,23 +30,29 @@ public class StaffSeeder implements ApplicationRunner {
             return;
         }
 
-        String adminEmail = "admin@solarflow.local";
+        // Each account is checked on its own, so a SALES user is still created
+        // on a database where the admin already exists.
+        seedIfMissing("admin@solarflow.local", "SolarFlow Admin", Role.ADMIN);
+        seedIfMissing("sales@solarflow.local", "SolarFlow Sales", Role.SALES);
+    }
 
-        if (userRepo.existsByEmail(adminEmail)) {
-            log.info("Admin account already exists. Skipping staff seeding.");
+    private void seedIfMissing(String email, String fullName, Role role) {
+
+        if (userRepo.existsByEmail(email)) {
+            log.info("{} account already exists. Skipping.", role);
             return;
         }
 
-        User admin = User.builder()
-                .email(adminEmail)
-                .fullName("SolarFlow Admin")
+        User user = User.builder()
+                .email(email)
+                .fullName(fullName)
                 .passwordHash(passwordEncoder.encode(seedPassword))
-                .role(Role.ADMIN)
+                .role(role)
                 .active(true)
                 .build();
 
-        userRepo.save(admin);
+        userRepo.save(user);
 
-        log.info("Initial admin account created successfully.");
+        log.info("Initial {} account created: {}", role, email);
     }
 }
