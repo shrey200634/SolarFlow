@@ -5,6 +5,7 @@ import com.solarFlow.solarFlow.lead.domain.Lead;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import com.solarFlow.solarFlow.lead.repo.LeadRepo;
 import com.solarFlow.solarFlow.lead.service.LeadService;
+import com.solarFlow.solarFlow.pincode.service.PincodeService;
 import com.solarFlow.solarFlow.pricing.dto.PricingCalculationDTO;
 import com.solarFlow.solarFlow.pricing.service.PricingCalculationService;
 import com.solarFlow.solarFlow.quotation.domain.Quotation;
@@ -44,6 +45,7 @@ public class QuotationService {
     private final PricingCalculationService pricingCalculationService;
     private final SolarSizingProperties solarSizingProperties;
     private final JsonMapper jsonMapper;
+    private final PincodeService pincodeService ;
     private final QuotationPdfService quotationPdfService;
 
     @Transactional
@@ -68,6 +70,14 @@ public class QuotationService {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "A quotation has already been accepted for this lead"
+            );
+        }
+
+        // NEW: only quote leads inside the serviceable area.
+        if (!pincodeService.isServiceable(lead.getPincode())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This lead's pincode is outside the serviceable area"
             );
         }
 

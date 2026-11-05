@@ -5,6 +5,7 @@ import com.solarFlow.solarFlow.lead.domain.Lead;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import com.solarFlow.solarFlow.lead.repo.LeadRepo;
 import com.solarFlow.solarFlow.lead.service.LeadService;
+import com.solarFlow.solarFlow.pincode.service.PincodeService;
 import com.solarFlow.solarFlow.pricing.dto.PricingCalculationDTO;
 import com.solarFlow.solarFlow.pricing.service.PricingCalculationService;
 import com.solarFlow.solarFlow.quotation.domain.Quotation;
@@ -44,6 +45,9 @@ class QuotationServiceTest {
 
     @Mock
     private QuotationRepo quotationRepo;
+
+    @Mock
+    private PincodeService pincodeService;
 
     @Mock
     private LeadRepo leadRepo;
@@ -151,6 +155,7 @@ class QuotationServiceTest {
                 "Subsidy is an estimate.",
                 "Pricing and payback are estimates."
         );
+        lenient().when(pincodeService.isServiceable(any())).thenReturn(true);
     }
 
     private void prepareValidCreation() throws Exception {
@@ -525,5 +530,29 @@ class QuotationServiceTest {
 
         verify(quotationRepo, never()).save(any());
         verify(leadRepo, never()).save(any());
+    }
+
+    @Test
+    void rejectsQuotationForUnserviceablePincode() {
+
+        when(leadService.findAccessible(leadId, salesActor))
+                .thenReturn(lead);
+
+        when(pincodeService.isServiceable(any()))
+                .thenReturn(false);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> quotationService.create(
+                        leadId,
+                        new CreateQuotationRequestDTO(new BigDecimal("2.5")),
+                        salesActor
+                )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+
+        verify(solarSizingService, never()).recommend(any(), any());
+        verify(quotationRepo, never()).save(any());
     }
 }

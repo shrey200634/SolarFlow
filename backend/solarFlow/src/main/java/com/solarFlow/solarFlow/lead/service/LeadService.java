@@ -103,6 +103,15 @@ public class LeadService {
         if (req.status() != null) {
             lead.setStatus(req.status());
         }
+        if (req.ownership() != null) {
+            lead.setOwnership(req.ownership());
+        }
+        if (req.roofType() != null) {
+            lead.setRoofType(req.roofType());
+        }
+        if (req.roofAreaSqft() != null) {
+            lead.setRoofAreaSqft(req.roofAreaSqft());
+        }
         return LeadResponseDTO.from(lead);
     }
 

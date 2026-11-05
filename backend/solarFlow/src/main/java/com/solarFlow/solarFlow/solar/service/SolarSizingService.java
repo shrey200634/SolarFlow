@@ -64,7 +64,7 @@ public class SolarSizingService {
         // 5. Build options.
         List<SolarRecommendationDTO.SolarOptionDTO> options = new ArrayList<>();
 
-        if (calculation.economyCapacityKw().compareTo(BigDecimal.ZERO) > 0) {
+        if (calculation.economyCapacityKw().compareTo(BigDecimal.ZERO) >= 0) {
             options.add(createOption("ECONOMY", calculation.economyCapacityKw()));
         }
 

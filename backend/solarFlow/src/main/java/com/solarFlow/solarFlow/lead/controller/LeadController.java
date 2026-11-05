@@ -51,7 +51,7 @@ public class LeadController {
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('SALES','ADMIN')")
     public ResponseEntity<LeadResponseDTO> update(@PathVariable UUID id,
-                                                  @RequestBody UpdateLeadRequestDTO req) {
+                                                 @Valid @RequestBody UpdateLeadRequestDTO req) {
         return ResponseEntity.ok(service.update(id, req));
     }
 }
