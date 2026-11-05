@@ -83,10 +83,10 @@ class QuotationPdfServiceTest {
             assertTrue(text.contains("SOLAR QUOTATION"));
             assertTrue(text.contains("RECOMMENDED"));
             assertTrue(text.contains("2.5"));
-            assertTrue(text.contains("250000.00"));
-            assertTrue(text.contains("69000.00"));
-            assertTrue(text.contains("181000.00"));
-            assertTrue(text.contains("28000.00"));
+            assertTrue(text.contains("2,50,000.00"));
+            assertTrue(text.contains("69,000.00"));
+            assertTrue(text.contains("1,81,000.00"));
+            assertTrue(text.contains("28,000.00"));
             assertTrue(text.contains("6.46"));
             assertTrue(text.contains("Subsidy is an estimate."));
         }

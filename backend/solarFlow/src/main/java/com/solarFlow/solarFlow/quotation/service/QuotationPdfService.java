@@ -1,131 +1,218 @@
 package com.solarFlow.solarFlow.quotation.service;
 
+import com.solarFlow.solarFlow.pricing.dto.PricingCalculationDTO;
 import com.solarFlow.solarFlow.quotation.dto.QuotationSnapshot;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class QuotationPdfService {
 
-    public byte[] generate(QuotationSnapshot snapshot) {
+    private static final float MARGIN = 50f;
+    private static final float PAGE_W = PDRectangle.A4.getWidth();
+    private static final float PAGE_H = PDRectangle.A4.getHeight();
+    private static final float CONTENT_W = PAGE_W - 2 * MARGIN;
 
-        try (PDDocument document = new PDDocument();
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+    public byte[] generate(QuotationSnapshot s) {
 
-            PDPage page = new PDPage();
-            document.addPage(page);
+        try (PDDocument doc = new PDDocument();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-            PDType1Font bold =
-                    new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDPage page = new PDPage(PDRectangle.A4);
+            doc.addPage(page);
 
-            PDType1Font regular =
-                    new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
-            try (PDPageContentStream content =
-                         new PDPageContentStream(document, page)) {
+            PricingCalculationDTO p = s.pricing();
 
-                content.beginText();
-                content.setFont(bold, 20);
-                content.newLineAtOffset(50, 750);
-                content.showText("SOLARFLOW - SOLAR QUOTATION");
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
 
-                content.setFont(regular, 10);
-                content.newLineAtOffset(0, -25);
-                content.showText("Quotation date: " + snapshot.quotationDate());
+                float y = PAGE_H - MARGIN;
 
-                content.newLineAtOffset(0, -18);
-                content.showText("Lead reference: " + snapshot.leadId());
+                // ---- title ----
+                text(cs, bold, 18, MARGIN, y - 14, "SOLARFLOW - SOLAR QUOTATION");
+                y -= 36;
+                text(cs, regular, 9, MARGIN, y,
+                        "Quotation date: " + s.quotationDate() + "   |   Lead reference: " + s.leadId());
+                y -= 22;
 
-                content.newLineAtOffset(0, -35);
-                content.setFont(bold, 14);
-                content.showText("Recommended System");
+                // ---- headline box (the story first) ----
+                float boxH = 92f;
+                cs.setNonStrokingColor(0.92f, 0.96f, 0.93f);
+                cs.addRect(MARGIN, y - boxH, CONTENT_W, boxH);
+                cs.fill();
+                cs.setNonStrokingColor(0f, 0f, 0f);
 
-                content.setFont(regular, 11);
-                content.newLineAtOffset(0, -22);
-                content.showText("Selected option: " + snapshot.selectedOptionType());
+                text(cs, bold, 16, MARGIN + 14, y - 28,
+                        "Your " + plain(s.selectedCapacityKw()) + " kW rooftop solar system");
+                text(cs, bold, 12, MARGIN + 14, y - 50,
+                        "You pay " + inr(p.netSystemCost()) + " after estimated subsidy");
+                String payback = p.estimatedPaybackYears() == null
+                        ? "Payback period not available"
+                        : "Pays for itself in about " + plain(p.estimatedPaybackYears()) + " years";
+                text(cs, regular, 11, MARGIN + 14, y - 68,
+                        payback + "  |  about " + units(p.annualGenerationUnits()) + " units generated per year");
+                y -= boxH + 26;
 
-                content.newLineAtOffset(0, -18);
-                content.showText("System capacity: "
-                        + snapshot.selectedCapacityKw() + " kW");
+                // ---- system ----
+                y = section(cs, bold, y, "Recommended system");
+                y = row(cs, regular, y, "Selected option", s.selectedOptionType(), false);
+                y = row(cs, regular, y, "System capacity", plain(s.selectedCapacityKw()) + " kW", false);
+                y = row(cs, regular, y, "Estimated yearly generation",
+                        units(p.annualGenerationUnits()) + " units", false);
+                if (s.sizing() != null && s.sizing().limitingFactor() != null) {
+                    y = row(cs, regular, y, "Sized by", s.sizing().limitingFactor(), false);
+                }
+                y -= 12;
 
-                content.newLineAtOffset(0, -18);
-                content.showText("Estimated yearly generation: "
-                        + snapshot.pricing().annualGenerationUnits() + " units");
+                // ---- cost ----
+                y = section(cs, bold, y, "Cost breakdown");
+                y = row(cs, regular, y, "Price per kW", inr(p.pricePerKw()), false);
+                y = row(cs, regular, y, "Gross system cost", inr(p.grossSystemCost()), false);
+                y = row(cs, regular, y,
+                        p.subsidyEstimated() ? "Subsidy (estimate)" : "Subsidy",
+                        "- " + inr(p.subsidyAmount()), false);
+                y = row(cs, bold, y, "Net payable", inr(p.netSystemCost()), true);
+                y -= 12;
 
-                content.newLineAtOffset(0, -35);
-                content.setFont(bold, 14);
-                content.showText("Cost Breakdown");
+                // ---- savings ----
+                y = section(cs, bold, y, "Savings");
+                y = row(cs, regular, y, "Electricity tariff assumed",
+                        inr(p.electricityTariffPerUnit()) + " / unit", false);
+                y = row(cs, regular, y, "Estimated annual savings",
+                        inr(p.estimatedAnnualSavings()), false);
+                y = row(cs, regular, y, "Estimated payback",
+                        p.estimatedPaybackYears() == null
+                                ? "Not available"
+                                : plain(p.estimatedPaybackYears()) + " years", false);
+                y -= 12;
 
-                content.setFont(regular, 11);
+                // ---- assumptions (wrapped) ----
+                y = section(cs, bold, y, "Important assumptions");
+                List<String> notes = List.of(
+                        "Generation assumed at " + plain(s.annualGenerationPerKw())
+                                + " units per kW per year; roof space assumed at "
+                                + plain(s.roofAreaPerKw()) + " sq ft per kW.",
+                        "Subsidy: " + s.subsidyDisclaimer(),
+                        s.pricingDisclaimer()
+                );
+                for (String note : notes) {
+                    List<String> lines = wrap(note, regular, 9, CONTENT_W - 12);
+                    for (int i = 0; i < lines.size(); i++) {
+                        if (i == 0) text(cs, regular, 9, MARGIN, y, "-");
+                        text(cs, regular, 9, MARGIN + 12, y, lines.get(i));
+                        y -= 12;
+                    }
+                    y -= 4;
+                }
 
-                content.newLineAtOffset(0, -22);
-                content.showText("Price per kW: INR "
-                        + snapshot.pricing().pricePerKw());
-
-                content.newLineAtOffset(0, -18);
-                content.showText("Gross system cost: INR "
-                        + snapshot.pricing().grossSystemCost());
-
-                content.newLineAtOffset(0, -18);
-                content.showText("Estimated subsidy: INR "
-                        + snapshot.pricing().subsidyAmount());
-
-                content.newLineAtOffset(0, -18);
-                content.showText("Net system cost: INR "
-                        + snapshot.pricing().netSystemCost());
-
-                content.newLineAtOffset(0, -18);
-                content.showText("Estimated annual savings: INR "
-                        + snapshot.pricing().estimatedAnnualSavings());
-
-                content.newLineAtOffset(0, -18);
-                content.showText("Estimated payback: "
-                        + (snapshot.pricing().estimatedPaybackYears() == null
-                        ? "Not available"
-                        : snapshot.pricing().estimatedPaybackYears() + " years"));
-
-                content.newLineAtOffset(0, -35);
-                content.setFont(bold, 12);
-                content.showText("Important Assumptions");
-
-                content.setFont(regular, 9);
-
-                content.newLineAtOffset(0, -20);
-                content.showText("Generation factor: "
-                        + snapshot.annualGenerationPerKw()
-                        + " units per kW per year");
-
-                content.newLineAtOffset(0, -16);
-                content.showText("Roof area assumption: "
-                        + snapshot.roofAreaPerKw() + " sq ft per kW");
-
-                content.newLineAtOffset(0, -22);
-                content.showText("Subsidy: " + snapshot.subsidyDisclaimer());
-
-                content.newLineAtOffset(0, -28);
-                content.showText(snapshot.pricingDisclaimer());
-
-                content.newLineAtOffset(0, -40);
-                content.setFont(bold, 10);
-                content.showText("SolarFlow - Build. Create. Grow.");
-
-                content.endText();
+                // ---- footer ----
+                cs.setNonStrokingColor(0.4f, 0.4f, 0.4f);
+                text(cs, regular, 8, MARGIN, MARGIN - 10,
+                        "Generated by SolarFlow. All figures are estimates based on the rules effective on the quotation date.");
+                cs.setNonStrokingColor(0f, 0f, 0f);
             }
 
-            document.save(output);
-            return output.toByteArray();
+            doc.save(out);
+            return out.toByteArray();
 
-        } catch (IOException exception) {
-            throw new IllegalStateException(
-                    "Unable to generate quotation PDF", exception
-            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate quotation PDF", e);
         }
+    }
+
+    // ---------------- drawing helpers ----------------
+
+    private float section(PDPageContentStream cs, PDType1Font bold, float y, String title) throws IOException {
+        text(cs, bold, 12, MARGIN, y, title);
+        return y - 20;
+    }
+
+    private float row(PDPageContentStream cs, PDType1Font font, float y,
+                      String label, String value, boolean emphasise) throws IOException {
+        float size = emphasise ? 12 : 10.5f;
+        text(cs, font, size, MARGIN, y, label);
+        float w = font.getStringWidth(clean(value)) / 1000f * size;
+        text(cs, font, size, MARGIN + CONTENT_W - w, y, value);
+
+        cs.setStrokingColor(0.85f, 0.85f, 0.85f);
+        cs.setLineWidth(0.5f);
+        cs.moveTo(MARGIN, y - 5);
+        cs.lineTo(MARGIN + CONTENT_W, y - 5);
+        cs.stroke();
+        return y - 19;
+    }
+
+    private void text(PDPageContentStream cs, PDType1Font font, float size,
+                      float x, float y, String value) throws IOException {
+        cs.beginText();
+        cs.setFont(font, size);
+        cs.newLineAtOffset(x, y);
+        cs.showText(clean(value));
+        cs.endText();
+    }
+
+    private List<String> wrap(String value, PDType1Font font, float size, float maxWidth) throws IOException {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : clean(value).split("\\s+")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (!line.isEmpty() && font.getStringWidth(candidate) / 1000f * size > maxWidth) {
+                lines.add(line.toString());
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(candidate);
+            }
+        }
+        if (!line.isEmpty()) lines.add(line.toString());
+        return lines;
+    }
+
+    // ---------------- formatting helpers ----------------
+
+    /** Standard-14 fonts cannot encode every character (the rupee sign, for one). Keep ASCII only. */
+    private static String clean(String value) {
+        return value == null ? "" : value.replaceAll("[^\\x20-\\x7E]", " ");
+    }
+
+    private static String plain(BigDecimal v) {
+        return v == null ? "-" : v.stripTrailingZeros().toPlainString();
+    }
+
+    private static String units(BigDecimal v) {
+        return v == null ? "-" : group(v.setScale(0, RoundingMode.HALF_UP).toPlainString());
+    }
+
+    /** 181000 -> "INR 1,81,000.00" (Indian digit grouping). */
+    private static String inr(BigDecimal v) {
+        if (v == null) return "-";
+        BigDecimal r = v.setScale(2, RoundingMode.HALF_UP);
+        String[] parts = r.abs().toPlainString().split("\\.");
+        return (r.signum() < 0 ? "-" : "") + "INR " + group(parts[0]) + "." + parts[1];
+    }
+
+    private static String group(String digits) {
+        if (digits.length() <= 3) return digits;
+        String last3 = digits.substring(digits.length() - 3);
+        String rest = digits.substring(0, digits.length() - 3);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rest.length(); i++) {
+            if (i > 0 && (rest.length() - i) % 2 == 0) sb.append(',');
+            sb.append(rest.charAt(i));
+        }
+        return sb + "," + last3;
     }
 }
