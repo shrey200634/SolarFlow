@@ -26,12 +26,11 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      # inside Docker the database host is the service name, not localhost
       DB_HOST: db
       DB_PORT: "5432"
       STORAGE_DIR: /data/storage
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - solarflow_storage:/data/storage
 
