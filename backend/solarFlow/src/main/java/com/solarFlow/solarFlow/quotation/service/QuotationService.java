@@ -30,6 +30,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
@@ -60,6 +61,15 @@ public class QuotationService {
         }
 
         Lead lead = leadService.findAccessible(leadId, actor);
+
+        // Once a quotation is accepted the deal is settled. A new quotation must not
+        // reopen it or push the lead status backwards.
+        if (lead.getStatus() == LeadStatus.ACCEPTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "A quotation has already been accepted for this lead"
+            );
+        }
 
         SolarRecommendationDTO sizing =
                 solarSizingService.recommend(leadId, actor);
@@ -135,7 +145,7 @@ public class QuotationService {
         Quotation quotation = getQuotationOrThrow(quotationId);
 
         // Enforces homeowner ownership. Staff can access any lead.
-        leadService.findAccessible(quotation.getLead().getId(), actor);
+        requireAccessibleLead(quotation, actor);
 
         return toResponse(quotation);
     }
@@ -145,7 +155,7 @@ public class QuotationService {
 
         Quotation quotation = getQuotationOrThrow(quotationId);
 
-        leadService.findAccessible(quotation.getLead().getId(), actor);
+        requireAccessibleLead(quotation, actor);
 
         QuotationSnapshot snapshot = readSnapshot(quotation.getSnapshotJson());
 
@@ -164,17 +174,25 @@ public class QuotationService {
 
         Quotation quotation = getQuotationOrThrow(quotationId);
 
-        Lead lead = leadService.findAccessible(
-                quotation.getLead().getId(), actor
-        );
+        Lead lead = requireAccessibleLead(quotation, actor);
 
         // Idempotent acceptance: repeated requests do not change the result.
         if (quotation.getStatus() == QuotationStatus.ACCEPTED) {
             return toResponse(quotation);
         }
 
+        // Only one quotation can be accepted per lead (one project per deal).
+        if (lead.getStatus() == LeadStatus.ACCEPTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Another quotation has already been accepted for this lead"
+            );
+        }
+
         quotation.setStatus(QuotationStatus.ACCEPTED);
-        quotation.setAcceptedAt(Instant.now());
+        // Truncated to microseconds, the precision PostgreSQL stores, so the value
+        // returned now equals the value read back later.
+        quotation.setAcceptedAt(Instant.now().truncatedTo(ChronoUnit.MICROS));
 
         lead.setStatus(LeadStatus.ACCEPTED);
 
@@ -187,10 +205,25 @@ public class QuotationService {
     private Quotation getQuotationOrThrow(UUID quotationId) {
 
         return quotationRepo.findById(quotationId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Quotation not found"
-                ));
+                .orElseThrow(QuotationService::quotationNotFound);
+    }
+
+
+    private Lead requireAccessibleLead(Quotation quotation, AuthUser actor) {
+
+        try {
+            return leadService.findAccessible(quotation.getLead().getId(), actor);
+        } catch (ResponseStatusException exception) {
+            throw quotationNotFound();
+        }
+    }
+
+    private static ResponseStatusException quotationNotFound() {
+
+        return new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Quotation not found"
+        );
     }
 
     private QuotationSnapshot readSnapshot(String snapshotJson) {

@@ -479,4 +479,51 @@ class QuotationServiceTest {
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
     }
+
+    @Test
+    void cannotCreateQuotationForLeadThatIsAlreadyAccepted() {
+
+        lead.setStatus(LeadStatus.ACCEPTED);
+
+        when(leadService.findAccessible(leadId, salesActor))
+                .thenReturn(lead);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> quotationService.create(
+                        leadId,
+                        new CreateQuotationRequestDTO(new BigDecimal("2.5")),
+                        salesActor
+                )
+        );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        assertEquals(LeadStatus.ACCEPTED, lead.getStatus());
+
+        verify(quotationRepo, never()).save(any());
+    }
+
+    @Test
+    void cannotAcceptSecondQuotationOnSameLead() {
+
+        lead.setStatus(LeadStatus.ACCEPTED);
+
+        Quotation otherQuotation = existingQuotation(QuotationStatus.ISSUED);
+
+        when(quotationRepo.findById(quotationId))
+                .thenReturn(Optional.of(otherQuotation));
+
+        when(leadService.findAccessible(leadId, homeownerActor))
+                .thenReturn(lead);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> quotationService.accept(quotationId, homeownerActor)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+
+        verify(quotationRepo, never()).save(any());
+        verify(leadRepo, never()).save(any());
+    }
 }
