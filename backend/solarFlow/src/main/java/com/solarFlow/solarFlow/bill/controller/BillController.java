@@ -22,7 +22,7 @@ public class BillController {
 
     // 202 Accepted: extraction will be queued here on Day 3
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('HOMEOWNER','SALES')")
+    @PreAuthorize("hasAnyRole('HOMEOWNER','SALES','ADMIN')")
     public ResponseEntity<DocumentResponseDTO> upload(@PathVariable UUID leadId,
                                                       @RequestParam("file") MultipartFile file,
                                                       @AuthenticationPrincipal AuthUser me) {

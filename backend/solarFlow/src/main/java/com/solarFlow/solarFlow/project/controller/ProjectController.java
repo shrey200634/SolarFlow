@@ -20,32 +20,55 @@ public class ProjectController {
 
     private final ProjectService service;
 
-    // Staff create a project from an accepted quotation, recording the advance payment.
+    // Staff create a project from an accepted quotation.
     @PostMapping
     @PreAuthorize("hasAnyRole('SALES','ADMIN')")
-    public ResponseEntity<ProjectResponseDTO> create(@Valid @RequestBody CreateProjectRequestDTO request,
-                                                     @AuthenticationPrincipal AuthUser me) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request, me));
+    public ResponseEntity<ProjectResponseDTO> create(
+            @Valid @RequestBody CreateProjectRequestDTO request,
+            @AuthenticationPrincipal AuthUser me) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.create(request, me));
     }
 
     // Staff move a project forward one stage.
     @PostMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('SALES','ADMIN')")
-    public ResponseEntity<ProjectResponseDTO> changeStatus(@PathVariable UUID id,
-                                                           @Valid @RequestBody ProjectStatusRequestDTO request,
-                                                           @AuthenticationPrincipal AuthUser me) {
+    public ResponseEntity<ProjectResponseDTO> changeStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody ProjectStatusRequestDTO request,
+            @AuthenticationPrincipal AuthUser me) {
+
         return ResponseEntity.ok(service.changeStatus(id, request, me));
+    }
+
+    // Staff activate or revoke a public status link.
+    @PatchMapping("/{id}/status-link")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
+    public ResponseEntity<ProjectResponseDTO> updateStatusLink(
+            @PathVariable UUID id,
+            @Valid @RequestBody StatusLinkRequestDTO request,
+            @AuthenticationPrincipal AuthUser me) {
+
+        return ResponseEntity.ok(
+                service.setStatusLinkActive(id, request.active(), me)
+        );
     }
 
     // Staff see all projects, homeowners only their own.
     @GetMapping
-    public ResponseEntity<List<ProjectResponseDTO>> list(@AuthenticationPrincipal AuthUser me) {
-        return ResponseEntity.ok(service.list(me));
+    public ResponseEntity<List<ProjectResponseDTO>> list(
+            @AuthenticationPrincipal AuthUser me,
+            @RequestParam(required = false) UUID leadId) {
+
+        return ResponseEntity.ok(service.list(me, leadId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProjectResponseDTO> get(@PathVariable UUID id,
-                                                  @AuthenticationPrincipal AuthUser me) {
+    public ResponseEntity<ProjectResponseDTO> get(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal AuthUser me) {
+
         return ResponseEntity.ok(service.get(id, me));
     }
 }

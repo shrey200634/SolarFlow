@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +47,19 @@ public class PricingRuleService {
         rule.setActive(true);
 
         return toResponse(repository.save(rule));
+    }
+
+    @Transactional
+    public PricingRuleResponseDTO setActive(UUID id, boolean active) {
+        SolarPricingRule rule = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pricing rule not found"));
+        if (active && !rule.isActive()
+                && repository.existsActiveOverlap(rule.getEffectiveFrom(), rule.getEffectiveTo())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "An active pricing rule already exists for this date range");
+        }
+        rule.setActive(active);
+        return toResponse(rule);
     }
 
     @Transactional(readOnly = true)

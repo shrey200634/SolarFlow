@@ -2,7 +2,6 @@ package com.solarFlow.solarFlow.lead.controller;
 
 import com.solarFlow.solarFlow.auth.security.AuthUser;
 import com.solarFlow.solarFlow.common.PageResponse;
-import com.solarFlow.solarFlow.lead.controller.CreateLeadRequestDTO;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import com.solarFlow.solarFlow.lead.service.LeadService;
 import jakarta.validation.Valid;
@@ -20,7 +19,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LeadController {
 
-    private final LeadService service ;
+    private final LeadService service;
+
     @PostMapping
     @PreAuthorize("hasAnyRole('HOMEOWNER','SALES')")
     public ResponseEntity<LeadResponseDTO> create(@Valid @RequestBody CreateLeadRequestDTO req,
@@ -29,18 +29,23 @@ public class LeadController {
     }
 
     @GetMapping
-    public  ResponseEntity<PageResponse<LeadResponseDTO>> list (
-            @AuthenticationPrincipal AuthUser me ,
+    public ResponseEntity<PageResponse<LeadResponseDTO>> list(
+            @AuthenticationPrincipal AuthUser me,
             @RequestParam(required = false) LeadStatus status,
             @RequestParam(required = false) String pincode,
             @RequestParam(required = false) UUID assignee,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size)  {
-        PageResponse<LeadResponseDTO> result = service.list(me ,  status, pincode , assignee  ,  page  , size);
-        return  ResponseEntity.ok(result);
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(service.list(me, status, pincode, assignee, q, page, size));
     }
 
-
+    // Counts per status for the sales overview.
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('SALES','ADMIN')")
+    public ResponseEntity<LeadStatsDTO> stats() {
+        return ResponseEntity.ok(service.stats());
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<LeadResponseDTO> get(@PathVariable UUID id,
@@ -51,13 +56,7 @@ public class LeadController {
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('SALES','ADMIN')")
     public ResponseEntity<LeadResponseDTO> update(@PathVariable UUID id,
-                                                 @Valid @RequestBody UpdateLeadRequestDTO req) {
+                                                  @Valid @RequestBody UpdateLeadRequestDTO req) {
         return ResponseEntity.ok(service.update(id, req));
     }
 }
-
-
-
-
-
-

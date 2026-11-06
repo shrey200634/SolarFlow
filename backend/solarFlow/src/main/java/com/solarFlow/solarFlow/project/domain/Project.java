@@ -54,10 +54,17 @@ public class Project {
         Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
+        if (statusLinkActive == null) statusLinkActive = true;
+
     }
 
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
     }
+    @Builder.Default
+    @Column(name = "status_link_active")
+    private Boolean statusLinkActive = true;
+
+
 }

@@ -4,13 +4,17 @@ import com.solarFlow.solarFlow.auth.security.AuthUser;
 import com.solarFlow.solarFlow.common.PageResponse;
 import com.solarFlow.solarFlow.lead.controller.CreateLeadRequestDTO;
 import com.solarFlow.solarFlow.lead.controller.LeadResponseDTO;
+import com.solarFlow.solarFlow.lead.controller.LeadStatsDTO;
 import com.solarFlow.solarFlow.lead.controller.UpdateLeadRequestDTO;
 import com.solarFlow.solarFlow.lead.domain.Lead;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import com.solarFlow.solarFlow.lead.repo.LeadRepo;
+import com.solarFlow.solarFlow.qualification.domain.QualificationResult;
+import com.solarFlow.solarFlow.qualification.repo.QualificationResultRepo;
 import com.solarFlow.solarFlow.user.domain.Role;
 import com.solarFlow.solarFlow.user.domain.User;
 import com.solarFlow.solarFlow.user.repo.UserRepo;
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,8 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +40,7 @@ public class LeadService {
 
     private final LeadRepo leads;
     private final UserRepo users;
+    private final QualificationResultRepo qualificationResults;
 
     @Transactional
     public LeadResponseDTO createLead(CreateLeadRequestDTO req, AuthUser actor) {
@@ -49,12 +58,12 @@ public class LeadService {
                 .duplicateFlag(duplicate)
                 .build();
 
-        return LeadResponseDTO.from(leads.save(lead));
+        return LeadResponseDTO.from(leads.save(lead), null);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<LeadResponseDTO> list(AuthUser actor, LeadStatus status, String pincode,
-                                              UUID assignee, int page, int size) {
+                                              UUID assignee, String q, int page, int size) {
         boolean homeowner = actor.role() == Role.HOMEOWNER;
 
         Specification<Lead> spec = (root, query, cb) -> {
@@ -71,6 +80,20 @@ public class LeadService {
             if (assignee != null && !homeowner) {
                 p.add(cb.equal(root.get("assignedTo").get("id"), assignee));
             }
+            // Staff search: customer name, email, or phone digits.
+            if (!homeowner && q != null && !q.isBlank()) {
+                String term = q.trim();
+                String digits = term.replaceAll("\\D", "");
+                String like = "%" + escapeLike(term.toLowerCase()) + "%";
+                Join<Lead, User> owner = root.join("owner");
+                List<Predicate> any = new ArrayList<>();
+                any.add(cb.like(cb.lower(owner.get("fullName")), like, '\\'));
+                any.add(cb.like(cb.lower(owner.get("email")), like, '\\'));
+                if (digits.length() >= 3) {
+                    any.add(cb.like(root.get("phoneE164"), "%" + digits + "%"));
+                }
+                p.add(cb.or(any.toArray(new Predicate[0])));
+            }
             return cb.and(p.toArray(new Predicate[0]));
         };
 
@@ -79,13 +102,15 @@ public class LeadService {
                 Math.min(Math.max(size, 1), 100),            // cap page size at 100
                 Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        Page<LeadResponseDTO> result = leads.findAll(spec, pageable).map(LeadResponseDTO::from);
-        return PageResponse.of(result);
+        Page<Lead> found = leads.findAll(spec, pageable);
+        Map<UUID, Integer> scores = latestScores(found.getContent());
+        return PageResponse.of(found.map(l -> LeadResponseDTO.from(l, scores.get(l.getId()))));
     }
 
     @Transactional(readOnly = true)
     public LeadResponseDTO get(UUID id, AuthUser actor) {
-        return LeadResponseDTO.from(findAccessible(id, actor));
+        Lead lead = findAccessible(id, actor);
+        return LeadResponseDTO.from(lead, latestScore(lead.getId()));
     }
 
     @Transactional
@@ -100,8 +125,8 @@ public class LeadService {
                             "assignee must be an active SALES or ADMIN user"));
             lead.setAssignedTo(assignee);
         }
-        if (req.status() != null) {
-            lead.setStatus(req.status());
+        if (req.status() != null && req.status() != lead.getStatus()) {
+            applyManualStatus(lead, req.status());
         }
         if (req.ownership() != null) {
             lead.setOwnership(req.ownership());
@@ -112,13 +137,25 @@ public class LeadService {
         if (req.roofAreaSqft() != null) {
             lead.setRoofAreaSqft(req.roofAreaSqft());
         }
-        return LeadResponseDTO.from(lead);
+        return LeadResponseDTO.from(lead, latestScore(lead.getId()));
     }
 
+    @Transactional(readOnly = true)
+    public LeadStatsDTO stats() {
+        Map<LeadStatus, Long> byStatus = new EnumMap<>(LeadStatus.class);
+        for (LeadStatus s : LeadStatus.values()) {
+            byStatus.put(s, 0L);
+        }
+        long total = 0;
+        for (Object[] row : leads.countGroupedByStatus()) {
+            long count = ((Number) row[1]).longValue();
+            byStatus.put((LeadStatus) row[0], count);
+            total += count;
+        }
+        return new LeadStatsDTO(total, byStatus);
+    }
 
-     // Reusable ownership guard. Homeowners get 404 for leads that are not theirs.
-     //Bill upload (Step 4/5) will call this too.
-
+    // Reusable ownership guard. Homeowners get 404 for leads that are not theirs.
     @Transactional(readOnly = true)
     public Lead findAccessible(UUID id, AuthUser actor) {
         Lead lead = leads.findById(id).orElseThrow(LeadService::notFound);
@@ -126,6 +163,45 @@ public class LeadService {
             throw notFound();
         }
         return lead;
+    }
+
+    // ---------------- helpers ----------------
+
+    /**
+     * Pipeline statuses are set by the workflow itself (upload, confirm, qualify, quote, accept).
+     * Staff may only mark an open lead as LOST, or reopen a lost lead for a sales call.
+     */
+    private static void applyManualStatus(Lead lead, LeadStatus target) {
+        LeadStatus current = lead.getStatus();
+        boolean markLost = target == LeadStatus.LOST && current != LeadStatus.ACCEPTED;
+        boolean reopen = current == LeadStatus.LOST && target == LeadStatus.SALES_CALL_PENDING;
+        if (!markLost && !reopen) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Lead status cannot be changed from " + current + " to " + target + " manually");
+        }
+        lead.setStatus(target);
+    }
+
+    private Integer latestScore(UUID leadId) {
+        return qualificationResults.findFirstByLeadIdOrderByCreatedAtDesc(leadId)
+                .map(QualificationResult::getScore)
+                .orElse(null);
+    }
+
+    private Map<UUID, Integer> latestScores(List<Lead> page) {
+        if (page.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<UUID> ids = page.stream().map(Lead::getId).toList();
+        return qualificationResults.findLatestForLeads(ids).stream()
+                .collect(Collectors.toMap(
+                        r -> r.getLead().getId(),
+                        QualificationResult::getScore,
+                        (a, b) -> a));
+    }
+
+    private static String escapeLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private static ResponseStatusException notFound() {

@@ -21,4 +21,6 @@ public interface ProjectRepo extends JpaRepository<Project, UUID> {
 
     // homeowner view: only projects on leads they own
     List<Project> findByLeadOwnerIdOrderByCreatedAtDesc(UUID ownerId);
+
+    List<Project> findByLeadIdOrderByCreatedAtDesc(UUID leadId);
 }

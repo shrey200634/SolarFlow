@@ -137,10 +137,17 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProjectResponseDTO> list(AuthUser actor) {
-        List<Project> found = actor.role() == Role.HOMEOWNER
-                ? projects.findByLeadOwnerIdOrderByCreatedAtDesc(actor.id())
-                : projects.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100));
+    public List<ProjectResponseDTO> list(AuthUser actor, UUID leadId) {
+        List<Project> found;
+        if (actor.role() == Role.HOMEOWNER) {
+            found = projects.findByLeadOwnerIdOrderByCreatedAtDesc(actor.id()).stream()
+                    .filter(p -> leadId == null || p.getLead().getId().equals(leadId))
+                    .toList();
+        } else if (leadId != null) {
+            found = projects.findByLeadIdOrderByCreatedAtDesc(leadId);
+        } else {
+            found = projects.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100));
+        }
         return found.stream().map(p -> toDto(p, actor)).toList();
     }
 
@@ -150,6 +157,12 @@ public class ProjectService {
 
         Project project = projects.findByStatusToken(token)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Status link not found"));
+        if (!Boolean.TRUE.equals(project.getStatusLinkActive())) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Status link not found"
+            );
+        }
 
         List<PublicProjectStatusDTO.Stage> timeline = history
                 .findByProjectIdOrderByChangedAtAsc(project.getId()).stream()
@@ -164,6 +177,37 @@ public class ProjectService {
                 timeline);
     }
 
+
+    // ---------------- status link management ----------------
+
+    @Transactional
+    public ProjectResponseDTO setStatusLinkActive(
+            UUID projectId,
+            Boolean active,
+            AuthUser actor) {
+
+        // Defence in depth: only staff can manage public links.
+        if (actor.role() == Role.HOMEOWNER) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only staff can manage project status links"
+            );
+        }
+
+        Project project = projects.findById(projectId)
+                .orElseThrow(ProjectService::notFound);
+
+        project.setStatusLinkActive(active);
+
+        log.info(
+                "Project {} status link {} by user {}",
+                projectId,
+                active ? "activated" : "revoked",
+                actor.id()
+        );
+
+        return toDto(project, actor);
+    }
     // ---------------- helpers ----------------
 
     private void requireAccess(Project project, AuthUser actor) {
@@ -208,8 +252,9 @@ public class ProjectService {
                 quotation.getSelectedCapacityKw(),
                 readSnapshot(quotation).pricing().netSystemCost(),
                 project.getAdvanceAmount(),
-                STATUS_LINK_PREFIX + project.getStatusToken(),
-                project.getCreatedAt(),
+                Boolean.TRUE.equals(project.getStatusLinkActive())
+                        ? STATUS_LINK_PREFIX + project.getStatusToken()
+                        : null,                project.getCreatedAt(),
                 project.getUpdatedAt(),
                 entries);
     }

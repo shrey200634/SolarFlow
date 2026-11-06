@@ -11,6 +11,8 @@ import com.solarFlow.solarFlow.bill.event.BillConfirmedEvent;
 import com.solarFlow.solarFlow.bill.extraction.ExtractionValidator;
 import com.solarFlow.solarFlow.bill.repo.BillExtractionRepo;
 import com.solarFlow.solarFlow.bill.repo.LeadDocumentRepo;
+import com.solarFlow.solarFlow.bill.storage.DocumentStorage;
+import com.solarFlow.solarFlow.bill.storage.StorageException;
 import com.solarFlow.solarFlow.lead.domain.Lead;
 import com.solarFlow.solarFlow.lead.domain.LeadStatus;
 import com.solarFlow.solarFlow.lead.service.LeadService;
@@ -24,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -43,6 +47,19 @@ public class BillConfirmationService {
     private final UserRepo users;
     private final ApplicationEventPublisher events;
     private final ExtractionValidator validator;
+    private final DocumentStorage storage;
+
+    public record StoredFile(byte[] data, String contentType) { }
+
+    @Transactional(readOnly = true)
+    public StoredFile readFile(UUID documentId, AuthUser actor) {
+        LeadDocument document = findAccessibleDocument(documentId, actor);
+        try (InputStream in = storage.open(document.getStorageKey())) {
+            return new StoredFile(in.readAllBytes(), document.getContentType());
+        } catch (IOException | StorageException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Bill file is not available");
+        }
+    }
 
     @Transactional(readOnly = true)
     public ExtractionResponseDTO getExtraction(
@@ -209,7 +226,7 @@ public class BillConfirmationService {
         String source;
 
         if (correctedValue != null) {
-            source = actor.role() == Role.SALES
+            source = actor.role() != Role.HOMEOWNER
                     ? "SALES"
                     : "CUSTOMER";
         } else if (aiValue != null) {

@@ -209,9 +209,13 @@ function Test-QuotationGuard {
     Call POST ($createPath -f $l) $tokS @{ selectedCapacityKw = 2.5 } | Out-Null
     ExpectStatus "new quotation after acceptance is blocked" 409
 
-    Write-Host "`n--- the bypass: sales resets the lead status to QUOTED" -ForegroundColor Cyan
-    $patched = Call PATCH "/leads/$l" $tokS @{ status = "QUOTED" }
-    Expect "status was reset to QUOTED" $patched.status "QUOTED"
+    Write-Host "`n--- verify accepted lead cannot be reset to QUOTED" -ForegroundColor Cyan
+
+    Call PATCH "/leads/$l" $tokS @{ status = "QUOTED" } | Out-Null
+    ExpectStatus "ACCEPTED lead cannot be reset to QUOTED" 409
+
+    $afterPatch = Call GET "/leads/$l" $tokS
+    Expect "lead remains ACCEPTED" $afterPatch.status "ACCEPTED"
     Call POST ($createPath -f $l) $tokS @{ selectedCapacityKw = 2.5 } | Out-Null
     ExpectStatus "new quotation still blocked" 409
     Call POST ($acceptPath -f $qb.id) $tokA | Out-Null
