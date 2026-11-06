@@ -486,12 +486,13 @@ class QuotationServiceTest {
     }
 
     @Test
-    void cannotCreateQuotationForLeadThatIsAlreadyAccepted() {
-
-        lead.setStatus(LeadStatus.ACCEPTED);
+    void cannotCreateQuotationForLeadThatAlreadyHasAnAcceptedQuotation() {
 
         when(leadService.findAccessible(leadId, salesActor))
                 .thenReturn(lead);
+
+        when(quotationRepo.existsByLeadIdAndStatus(leadId, QuotationStatus.ACCEPTED))
+                .thenReturn(true);
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
@@ -503,15 +504,13 @@ class QuotationServiceTest {
         );
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
-        assertEquals(LeadStatus.ACCEPTED, lead.getStatus());
+        assertEquals(LeadStatus.BILL_CONFIRMED, lead.getStatus());
 
         verify(quotationRepo, never()).save(any());
     }
 
     @Test
     void cannotAcceptSecondQuotationOnSameLead() {
-
-        lead.setStatus(LeadStatus.ACCEPTED);
 
         Quotation otherQuotation = existingQuotation(QuotationStatus.ISSUED);
 
@@ -520,6 +519,9 @@ class QuotationServiceTest {
 
         when(leadService.findAccessible(leadId, homeownerActor))
                 .thenReturn(lead);
+
+        when(quotationRepo.existsByLeadIdAndStatus(leadId, QuotationStatus.ACCEPTED))
+                .thenReturn(true);
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
@@ -530,6 +532,47 @@ class QuotationServiceTest {
 
         verify(quotationRepo, never()).save(any());
         verify(leadRepo, never()).save(any());
+    }
+
+    @Test
+    void listsQuotationsOfAnAccessibleLead() {
+
+        Quotation quotation = existingQuotation(QuotationStatus.ISSUED);
+
+        when(leadService.findAccessible(leadId, homeownerActor))
+                .thenReturn(lead);
+
+        when(quotationRepo.findByLeadIdOrderByCreatedAtDesc(leadId))
+                .thenReturn(List.of(quotation));
+
+        when(jsonMapper.readValue(
+                eq("snapshot-json"),
+                eq(QuotationSnapshot.class)))
+                .thenReturn(snapshot);
+
+        var result = quotationService.listForLead(leadId, homeownerActor);
+
+        assertEquals(1, result.size());
+        assertEquals(quotationId, result.get(0).id());
+    }
+
+    @Test
+    void cannotListQuotationsOfAnotherUsersLead() {
+
+        when(leadService.findAccessible(leadId, homeownerActor))
+                .thenThrow(new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Lead not found"
+                ));
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> quotationService.listForLead(leadId, homeownerActor)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+
+        verify(quotationRepo, never()).findByLeadIdOrderByCreatedAtDesc(any());
     }
 
     @Test

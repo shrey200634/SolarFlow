@@ -1,6 +1,6 @@
+
 package com.solarFlow.solarFlow.bill.extraction;
 
-import com.solarFlow.solarFlow.bill.extraction.ExtractionResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,16 +18,27 @@ public class ExtractionValidator {
     public static final String SANCTIONED_LOAD = "sanctionedLoadKw";
     public static final String MONTHLY_UNITS = "monthlyUnits";
 
-    public record FieldReport(String field, double confidence, boolean reviewRequired, List<String> issues) { }
+    public record FieldReport(
+            String field,
+            double confidence,
+            boolean reviewRequired,
+            List<String> issues
+    ) {}
 
     public record Report(List<FieldReport> fields, boolean lowQuality) {
 
         public FieldReport field(String name) {
-            return fields.stream().filter(f -> f.field().equals(name)).findFirst().orElseThrow();
+            return fields.stream()
+                    .filter(f -> f.field().equals(name))
+                    .findFirst()
+                    .orElseThrow();
         }
 
         public List<String> reviewFields() {
-            return fields.stream().filter(FieldReport::reviewRequired).map(FieldReport::field).toList();
+            return fields.stream()
+                    .filter(FieldReport::reviewRequired)
+                    .map(FieldReport::field)
+                    .toList();
         }
     }
 
@@ -50,7 +61,8 @@ public class ExtractionValidator {
             @Value("${solarflow.bill.sanctioned-load-max-kw}") BigDecimal maxLoadKw,
             @Value("${solarflow.bill.monthly-units-max}") BigDecimal maxUnits,
             @Value("${solarflow.bill.implied-rate-min}") BigDecimal minRate,
-            @Value("${solarflow.bill.implied-rate-max}") BigDecimal maxRate) {
+            @Value("${solarflow.bill.implied-rate-max}") BigDecimal maxRate
+    ) {
         this.consumerPattern = Pattern.compile(consumerPattern);
         this.tariffPattern = Pattern.compile(tariffPattern);
         this.fieldThreshold = fieldThreshold;
@@ -62,79 +74,192 @@ public class ExtractionValidator {
         this.maxRate = maxRate;
     }
 
-    /** declaredMonthlyBill is what the customer typed on the lead form (may be null). */
-    public Report validate(ExtractionResult r, BigDecimal declaredMonthlyBill) {
+    public Report validate(
+            ExtractionResult r,
+            BigDecimal declaredMonthlyBill
+    ) {
         List<FieldReport> fields = new ArrayList<>();
+
         fields.add(checkConsumerNumber(r.consumerNumber()));
         fields.add(checkTariff(r.tariff()));
         fields.add(checkLoad(r.sanctionedLoadKw()));
         fields.add(checkUnits(r.monthlyUnits(), declaredMonthlyBill));
 
-        boolean nothingRead = r.consumerNumber().value() == null && r.tariff().value() == null
-                && r.sanctionedLoadKw().value() == null && r.monthlyUnits().value() == null;
-        boolean lowQuality = nothingRead || r.overallConfidence() < lowQualityThreshold;
+        boolean nothingRead =
+                r.consumerNumber().value() == null
+                        && r.tariff().value() == null
+                        && r.sanctionedLoadKw().value() == null
+                        && r.monthlyUnits().value() == null;
+
+        boolean lowQuality =
+                nothingRead || r.overallConfidence() < lowQualityThreshold;
 
         return new Report(fields, lowQuality);
     }
 
-    // ---------------- per-field checks ----------------
-
-    private FieldReport checkConsumerNumber(ExtractionResult.Field<String> f) {
+    /**
+     * Validates the final values after AI extraction and manual corrections
+     * have been merged. Confidence is deliberately not checked here because
+     * these values are being explicitly confirmed by a person.
+     */
+    public List<String> validateConfirmedValues(
+            String consumerNumber,
+            String tariff,
+            BigDecimal sanctionedLoadKw,
+            BigDecimal monthlyUnits,
+            BigDecimal declaredMonthlyBill
+    ) {
         List<String> issues = new ArrayList<>();
+
+        if (consumerNumber == null || consumerNumber.isBlank()) {
+            issues.add("CONSUMER_NUMBER_MISSING");
+        } else if (!consumerPattern.matcher(consumerNumber).matches()) {
+            issues.add("CONSUMER_NUMBER_BAD_FORMAT");
+        }
+
+        if (tariff == null || tariff.isBlank()) {
+            issues.add("TARIFF_MISSING");
+        } else if (!tariffPattern.matcher(tariff).matches()) {
+            issues.add("TARIFF_UNKNOWN");
+        }
+
+        if (sanctionedLoadKw == null) {
+            issues.add("SANCTIONED_LOAD_MISSING");
+        } else if (sanctionedLoadKw.compareTo(minLoadKw) < 0
+                || sanctionedLoadKw.compareTo(maxLoadKw) > 0) {
+            issues.add("SANCTIONED_LOAD_OUT_OF_RANGE");
+        }
+
+        if (monthlyUnits == null) {
+            issues.add("MONTHLY_UNITS_MISSING");
+        } else if (monthlyUnits.signum() < 0
+                || monthlyUnits.compareTo(maxUnits) > 0) {
+            issues.add("MONTHLY_UNITS_OUT_OF_RANGE");
+        } else if (monthlyUnits.signum() > 0
+                && declaredMonthlyBill != null
+                && declaredMonthlyBill.signum() > 0) {
+
+            BigDecimal impliedRate = declaredMonthlyBill.divide(
+                    monthlyUnits,
+                    2,
+                    RoundingMode.HALF_UP
+            );
+
+            if (impliedRate.compareTo(minRate) < 0
+                    || impliedRate.compareTo(maxRate) > 0) {
+                issues.add("UNITS_BILL_MISMATCH");
+            }
+        }
+
+        return List.copyOf(issues);
+    }
+
+    private FieldReport checkConsumerNumber(
+            ExtractionResult.Field<String> f
+    ) {
+        List<String> issues = new ArrayList<>();
+
         if (f.value() == null) {
             issues.add("MISSING");
         } else {
-            if (!consumerPattern.matcher(f.value()).matches()) issues.add("BAD_FORMAT");
+            if (!consumerPattern.matcher(f.value()).matches()) {
+                issues.add("BAD_FORMAT");
+            }
             addLowConfidence(f.confidence(), issues);
         }
+
         return report(CONSUMER_NUMBER, f.confidence(), issues);
     }
 
-    private FieldReport checkTariff(ExtractionResult.Field<String> f) {
+    private FieldReport checkTariff(
+            ExtractionResult.Field<String> f
+    ) {
         List<String> issues = new ArrayList<>();
+
         if (f.value() == null) {
             issues.add("MISSING");
         } else {
-            if (!tariffPattern.matcher(f.value()).matches()) issues.add("UNKNOWN_TARIFF");
+            if (!tariffPattern.matcher(f.value()).matches()) {
+                issues.add("UNKNOWN_TARIFF");
+            }
             addLowConfidence(f.confidence(), issues);
         }
+
         return report(TARIFF, f.confidence(), issues);
     }
 
-    private FieldReport checkLoad(ExtractionResult.Field<BigDecimal> f) {
+    private FieldReport checkLoad(
+            ExtractionResult.Field<BigDecimal> f
+    ) {
         List<String> issues = new ArrayList<>();
+
         if (f.value() == null) {
-            issues.add("MISSING");   // optional for sizing, but highlighted so the customer can fill it in
+            issues.add("MISSING");
         } else {
-            if (f.value().compareTo(minLoadKw) < 0 || f.value().compareTo(maxLoadKw) > 0) issues.add("OUT_OF_RANGE");
+            if (f.value().compareTo(minLoadKw) < 0
+                    || f.value().compareTo(maxLoadKw) > 0) {
+                issues.add("OUT_OF_RANGE");
+            }
             addLowConfidence(f.confidence(), issues);
         }
+
         return report(SANCTIONED_LOAD, f.confidence(), issues);
     }
 
-    private FieldReport checkUnits(ExtractionResult.Field<BigDecimal> f, BigDecimal declaredBill) {
+    private FieldReport checkUnits(
+            ExtractionResult.Field<BigDecimal> f,
+            BigDecimal declaredBill
+    ) {
         List<String> issues = new ArrayList<>();
+
         if (f.value() == null) {
             issues.add("MISSING");
         } else {
             BigDecimal units = f.value();
+
             if (units.signum() < 0 || units.compareTo(maxUnits) > 0) {
                 issues.add("OUT_OF_RANGE");
-            } else if (units.signum() > 0 && declaredBill != null && declaredBill.signum() > 0) {
-                // implied ₹ per unit = declared bill / units (BigDecimal, scale 2, HALF_UP)
-                BigDecimal rate = declaredBill.divide(units, 2, RoundingMode.HALF_UP);
-                if (rate.compareTo(minRate) < 0 || rate.compareTo(maxRate) > 0) issues.add("UNITS_BILL_MISMATCH");
+            } else if (units.signum() > 0
+                    && declaredBill != null
+                    && declaredBill.signum() > 0) {
+
+                BigDecimal rate = declaredBill.divide(
+                        units,
+                        2,
+                        RoundingMode.HALF_UP
+                );
+
+                if (rate.compareTo(minRate) < 0
+                        || rate.compareTo(maxRate) > 0) {
+                    issues.add("UNITS_BILL_MISMATCH");
+                }
             }
+
             addLowConfidence(f.confidence(), issues);
         }
+
         return report(MONTHLY_UNITS, f.confidence(), issues);
     }
 
-    private void addLowConfidence(double confidence, List<String> issues) {
-        if (confidence < fieldThreshold) issues.add("LOW_CONFIDENCE");
+    private void addLowConfidence(
+            double confidence,
+            List<String> issues
+    ) {
+        if (confidence < fieldThreshold) {
+            issues.add("LOW_CONFIDENCE");
+        }
     }
 
-    private static FieldReport report(String field, double confidence, List<String> issues) {
-        return new FieldReport(field, confidence, !issues.isEmpty(), List.copyOf(issues));
+    private static FieldReport report(
+            String field,
+            double confidence,
+            List<String> issues
+    ) {
+        return new FieldReport(
+                field,
+                confidence,
+                !issues.isEmpty(),
+                List.copyOf(issues)
+        );
     }
 }

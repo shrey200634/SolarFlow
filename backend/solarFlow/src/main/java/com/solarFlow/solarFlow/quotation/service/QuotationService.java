@@ -32,6 +32,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -66,7 +67,7 @@ public class QuotationService {
 
         // Once a quotation is accepted the deal is settled. A new quotation must not
         // reopen it or push the lead status backwards.
-        if (lead.getStatus() == LeadStatus.ACCEPTED) {
+        if (quotationRepo.existsByLeadIdAndStatus(leadId, QuotationStatus.ACCEPTED)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "A quotation has already been accepted for this lead"
@@ -192,7 +193,7 @@ public class QuotationService {
         }
 
         // Only one quotation can be accepted per lead (one project per deal).
-        if (lead.getStatus() == LeadStatus.ACCEPTED) {
+        if (quotationRepo.existsByLeadIdAndStatus(lead.getId(), QuotationStatus.ACCEPTED)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Another quotation has already been accepted for this lead"
@@ -262,5 +263,17 @@ public class QuotationService {
                 quotation.getAcceptedAt(),
                 readSnapshot(quotation.getSnapshotJson())
         );
+    }
+
+
+    /** All quotations of a lead, newest first. Homeowners only see their own leads (404 otherwise). */
+    @Transactional(readOnly = true)
+    public List<QuotationResponseDTO> listForLead(UUID leadId, AuthUser actor) {
+
+        leadService.findAccessible(leadId, actor);
+
+        return quotationRepo.findByLeadIdOrderByCreatedAtDesc(leadId).stream()
+                .map(this::toResponse)
+                .toList();
     }
 }

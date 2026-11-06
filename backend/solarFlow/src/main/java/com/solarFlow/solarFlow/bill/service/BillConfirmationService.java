@@ -1,3 +1,4 @@
+
 package com.solarFlow.solarFlow.bill.service;
 
 import com.solarFlow.solarFlow.auth.security.AuthUser;
@@ -7,6 +8,7 @@ import com.solarFlow.solarFlow.bill.domain.BillExtraction;
 import com.solarFlow.solarFlow.bill.domain.DocumentStatus;
 import com.solarFlow.solarFlow.bill.domain.LeadDocument;
 import com.solarFlow.solarFlow.bill.event.BillConfirmedEvent;
+import com.solarFlow.solarFlow.bill.extraction.ExtractionValidator;
 import com.solarFlow.solarFlow.bill.repo.BillExtractionRepo;
 import com.solarFlow.solarFlow.bill.repo.LeadDocumentRepo;
 import com.solarFlow.solarFlow.lead.domain.Lead;
@@ -40,14 +42,13 @@ public class BillConfirmationService {
     private final LeadService leadService;
     private final UserRepo users;
     private final ApplicationEventPublisher events;
+    private final ExtractionValidator validator;
 
     @Transactional(readOnly = true)
     public ExtractionResponseDTO getExtraction(
             UUID documentId,
             AuthUser actor
     ) {
-
-        // Homeowners can only access documents belonging to their own leads.
         LeadDocument document = findAccessibleDocument(documentId, actor);
 
         BillExtraction extraction = extractions
@@ -62,7 +63,6 @@ public class BillConfirmationService {
         String errorCode = null;
 
         if (extraction != null) {
-
             extractedFields = readJson(extraction.getExtractedJson());
             confidence = readJson(extraction.getConfidenceJson());
             confirmedFields = readJson(extraction.getConfirmedJson());
@@ -88,11 +88,58 @@ public class BillConfirmationService {
             ConfirmBillRequestDTO request,
             AuthUser actor
     ) {
+        // Ownership is checked before reading or modifying document data.
+        LeadDocument document = findAccessibleDocument(documentId, actor);
+        Lead lead = document.getLead();
 
-        // Ownership first: a foreign or unknown document gets the same 404 and nothing is changed.
-        findAccessibleDocument(documentId, actor);
+        BillExtraction extraction = extractions
+                .findFirstByDocumentIdOrderByAttemptDesc(documentId)
+                .orElse(null);
 
-        // Only these states can enter the confirmation flow.
+        Map<String, Object> aiFields = extraction == null
+                ? Map.of()
+                : readJson(extraction.getExtractedJson());
+
+        Map<String, Object> confirmed = new LinkedHashMap<>();
+
+        addConfirmedField(
+                confirmed, aiFields, "consumerNumber",
+                request.consumerNumber(), actor
+        );
+
+        addConfirmedField(
+                confirmed, aiFields, "tariff",
+                request.tariff(), actor
+        );
+
+        addConfirmedField(
+                confirmed, aiFields, "sanctionedLoadKw",
+                request.sanctionedLoadKw(), actor
+        );
+
+        addConfirmedField(
+                confirmed, aiFields, "monthlyUnits",
+                request.monthlyUnits(), actor
+        );
+
+        // Validate the final merged values, including unchanged AI values.
+        List<String> issues = validator.validateConfirmedValues(
+                stringValue(confirmed, "consumerNumber"),
+                stringValue(confirmed, "tariff"),
+                decimalValue(confirmed, "sanctionedLoadKw"),
+                decimalValue(confirmed, "monthlyUnits"),
+                lead.getDeclaredMonthlyBill()
+        );
+
+        if (!issues.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Bill confirmation validation failed: "
+                            + String.join(", ", issues)
+            );
+        }
+
+        // Only valid data may move the document into CONFIRMED.
         int updated = documents.transitionFrom(
                 documentId,
                 List.of(
@@ -114,47 +161,7 @@ public class BillConfirmationService {
             );
         }
 
-        LeadDocument document = documents.findById(documentId)
-                .orElseThrow(BillConfirmationService::notFound);
-
-        Lead lead = document.getLead();
-
-        BillExtraction extraction = extractions
-                .findFirstByDocumentIdOrderByAttemptDesc(documentId)
-                .orElse(null);
-
-        Map<String, Object> aiFields = extraction == null
-                ? Map.of()
-                : readJson(extraction.getExtractedJson());
-
-        Map<String, Object> confirmed = new LinkedHashMap<>();
-
-        // Merge AI values with customer/sales corrections.
-        addConfirmedField(
-                confirmed, aiFields, "consumerNumber",
-                request.consumerNumber(), actor
-        );
-
-        addConfirmedField(
-                confirmed, aiFields, "tariff",
-                request.tariff(), actor
-        );
-
-        addConfirmedField(
-                confirmed, aiFields, "sanctionedLoadKw",
-                request.sanctionedLoadKw(), actor
-        );
-
-        addConfirmedField(
-                confirmed, aiFields, "monthlyUnits",
-                request.monthlyUnits(), actor
-        );
-
-        // Do not confirm a bill if any required value is still missing.
-        validateConfirmedFields(confirmed);
-
         Instant confirmedAt = Instant.now();
-
         String confirmedJson = JSON.writeValueAsString(confirmed);
 
         if (extraction == null) {
@@ -171,7 +178,6 @@ public class BillConfirmationService {
 
         extractions.save(extraction);
 
-        // Do not regress a lead that has already progressed further.
         if (lead.getStatus() == LeadStatus.NEW
                 || lead.getStatus() == LeadStatus.BILL_UPLOADED) {
             lead.setStatus(LeadStatus.BILL_CONFIRMED);
@@ -191,19 +197,18 @@ public class BillConfirmationService {
             Map<String, Object> confirmed,
             Map<String, Object> aiFields,
             String fieldName,
-            Object customerValue,
+            Object correctedValue,
             AuthUser actor
     ) {
-
         Object aiValue = extractValue(aiFields.get(fieldName));
 
-        Object finalValue = customerValue != null
-                ? customerValue
+        Object finalValue = correctedValue != null
+                ? correctedValue
                 : aiValue;
 
         String source;
 
-        if (customerValue != null) {
+        if (correctedValue != null) {
             source = actor.role() == Role.SALES
                     ? "SALES"
                     : "CUSTOMER";
@@ -221,7 +226,6 @@ public class BillConfirmationService {
     }
 
     private static Object extractValue(Object field) {
-
         if (!(field instanceof Map<?, ?> map)) {
             return null;
         }
@@ -229,69 +233,33 @@ public class BillConfirmationService {
         return map.get("value");
     }
 
-    private static void validateConfirmedFields(
-            Map<String, Object> confirmed
+    private static String stringValue(
+            Map<String, Object> fields,
+            String fieldName
     ) {
+        Object value = extractValue(fields.get(fieldName));
+        return value == null ? null : value.toString();
+    }
 
-        for (String fieldName : List.of(
-                "consumerNumber",
-                "tariff",
-                "sanctionedLoadKw",
-                "monthlyUnits"
-        )) {
+    private static BigDecimal decimalValue(
+            Map<String, Object> fields,
+            String fieldName
+    ) {
+        Object value = extractValue(fields.get(fieldName));
 
-            Object field = confirmed.get(fieldName);
-
-            if (!(field instanceof Map<?, ?> map)
-                    || map.get("value") == null
-                    || map.get("value").toString().isBlank()) {
-
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Missing required bill field: " + fieldName
-                );
-            }
+        if (value == null) {
+            return null;
         }
-
-        Object consumerNumber = extractValue(
-                confirmed.get("consumerNumber")
-        );
-
-        Object tariff = extractValue(
-                confirmed.get("tariff")
-        );
-
-        if (consumerNumber.toString().length() > 50
-                || tariff.toString().length() > 50) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Bill field exceeds allowed length"
-            );
-        }
-
-        Object load = extractValue(confirmed.get("sanctionedLoadKw"));
-        Object units = extractValue(confirmed.get("monthlyUnits"));
 
         try {
-            BigDecimal loadValue = new BigDecimal(load.toString());
-            BigDecimal unitsValue = new BigDecimal(units.toString());
-
-            if (loadValue.compareTo(BigDecimal.ZERO) <= 0
-                    || unitsValue.compareTo(BigDecimal.ZERO) < 0) {
-                throw new NumberFormatException();
-            }
-
+            return new BigDecimal(value.toString());
         } catch (NumberFormatException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid sanctioned load or monthly units"
-            );
+            return null;
         }
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> readJson(String json) {
-
         if (json == null || json.isBlank()) {
             return Map.of();
         }
@@ -301,18 +269,19 @@ public class BillConfirmationService {
             return result == null ? Map.of() : result;
         } catch (RuntimeException e) {
             throw new IllegalStateException(
-                    "Could not read stored extraction JSON", e
+                    "Could not read stored extraction JSON",
+                    e
             );
         }
     }
 
     /**
-     * Loads a document only if the actor may see its lead. A missing document and a document
-     * that belongs to someone else both produce the identical "Document not found" 404,
-     * so the API never reveals which document ids exist.
+     * A foreign document and an unknown document both return the same 404.
      */
-    private LeadDocument findAccessibleDocument(UUID documentId, AuthUser actor) {
-
+    private LeadDocument findAccessibleDocument(
+            UUID documentId,
+            AuthUser actor
+    ) {
         LeadDocument document = documents.findById(documentId)
                 .orElseThrow(BillConfirmationService::notFound);
 

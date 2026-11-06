@@ -19,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,6 +38,17 @@ public class QuotationController {
     ) {
         return ResponseEntity.ok(
                 quotationService.create(leadId, request, actor)
+        );
+    }
+    // A lead's quotations, newest first. Homeowners can only list their own leads' quotations.
+    @GetMapping("/api/v1/leads/{leadId}/quotations")
+    @PreAuthorize("hasAnyRole('HOMEOWNER', 'SALES', 'ADMIN')")
+    public ResponseEntity<List<QuotationResponseDTO>> listForLead(
+            @PathVariable UUID leadId,
+            @AuthenticationPrincipal AuthUser actor
+    ) {
+        return ResponseEntity.ok(
+                quotationService.listForLead(leadId, actor)
         );
     }
 
