@@ -24,6 +24,7 @@ spring:
 app:
   seed:
     password: ${SEED_PASSWORD:}
+    demo-leads: ${SEED_DEMO_LEADS:true}
   jwt:
     secret: ${JWT_KEY}
     expiry-minutes: ${JWT_EXPIRY_MINUTES:15}

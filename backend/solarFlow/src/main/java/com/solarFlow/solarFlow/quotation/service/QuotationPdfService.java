@@ -2,6 +2,7 @@ package com.solarFlow.solarFlow.quotation.service;
 
 import com.solarFlow.solarFlow.pricing.dto.PricingCalculationDTO;
 import com.solarFlow.solarFlow.quotation.dto.QuotationSnapshot;
+import com.solarFlow.solarFlow.solar.dto.SolarRecommendationDTO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -68,15 +69,31 @@ public class QuotationPdfService {
                 y -= boxH + 26;
 
                 // ---- system ----
-                y = section(cs, bold, y, "Recommended system");
-                y = row(cs, regular, y, "Selected option", s.selectedOptionType(), false);
+                y = section(cs, bold, y, "Selected system");
+                y = row(cs, regular, y, "Option", pretty(s.selectedOptionType()), false);
                 y = row(cs, regular, y, "System capacity", plain(s.selectedCapacityKw()) + " kW", false);
                 y = row(cs, regular, y, "Estimated yearly generation",
                         units(p.annualGenerationUnits()) + " units", false);
                 if (s.sizing() != null && s.sizing().limitingFactor() != null) {
-                    y = row(cs, regular, y, "Sized by", s.sizing().limitingFactor(), false);
+                    y = row(cs, regular, y, "Recommended size limited by",
+                            pretty(s.sizing().limitingFactor()), false);
                 }
                 y -= 12;
+
+                // ---- all options from the sizing snapshot ----
+                if (s.sizing() != null && s.sizing().options() != null && !s.sizing().options().isEmpty()) {
+                    y = section(cs, bold, y, "System options");
+                    for (SolarRecommendationDTO.SolarOptionDTO o : s.sizing().options()) {
+                        boolean chosen = o.capacityKw().compareTo(s.selectedCapacityKw()) == 0;
+                        y = row(cs, chosen ? bold : regular, y,
+                                pretty(o.type()) + (chosen ? "  (this quotation)" : ""),
+                                plain(o.capacityKw()) + " kW  |  " + units(o.estimatedYearlyGeneration()) + " units / year",
+                                false);
+                    }
+                    text(cs, regular, 8.5f, MARGIN, y + 4,
+                            "Ask us for a priced quotation for any other option.");
+                    y -= 14;
+                }
 
                 // ---- cost ----
                 y = section(cs, bold, y, "Cost breakdown");
@@ -186,6 +203,13 @@ public class QuotationPdfService {
     /** Standard-14 fonts cannot encode every character (the rupee sign, for one). Keep ASCII only. */
     private static String clean(String value) {
         return value == null ? "" : value.replaceAll("[^\\x20-\\x7E]", " ");
+    }
+
+    /** "RECOMMENDED" -> "Recommended", "USAGE" -> "Usage". */
+    private static String pretty(String v) {
+        if (v == null || v.isBlank()) return "-";
+        String t = v.replace('_', ' ').toLowerCase();
+        return Character.toUpperCase(t.charAt(0)) + t.substring(1);
     }
 
     private static String plain(BigDecimal v) {
