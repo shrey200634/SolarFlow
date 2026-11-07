@@ -9,6 +9,8 @@ import NewEnquiryPage from './pages/NewEnquiryPage'
 import BillUploadPage from './pages/BillUploadPage'
 import StaffHome from './pages/StaffHome'
 import NotFoundPage from './pages/NotFoundPage'
+import LeadDetailPage from './pages/LeadDetailPage'
+
 
 export default function App() {
   return (
@@ -22,6 +24,7 @@ export default function App() {
         <Route path="/app" element={<AppShell nav={homeownerNav} />}>
           <Route index element={<HomeownerHome />} />
           <Route path="new" element={<NewEnquiryPage />} />
+          <Route path=":leadId" element={<LeadDetailPage />} />
           <Route path=":leadId/bill" element={<BillUploadPage />} />
         </Route>
       </Route>

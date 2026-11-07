@@ -84,3 +84,40 @@ export interface PincodeAvailability {
   pincode: string
   serviceable: boolean
 }
+
+// ---- Quotations (matches backend quotation.dto.QuotationResponseDTO and QuotationSnapshot) ----
+export type QuotationStatus = 'ISSUED' | 'ACCEPTED'
+
+export interface PricingCalculation {
+  systemCapacityKw: number
+  pricePerKw: number
+  grossSystemCost: number
+  subsidyAmount: number
+  netSystemCost: number
+  annualGenerationUnits: number
+  electricityTariffPerUnit: number
+  estimatedAnnualSavings: number
+  estimatedPaybackYears: number
+  subsidyEstimated: boolean
+  calculationDate: string
+}
+
+export interface QuotationSnapshot {
+  quotationDate: string
+  selectedOptionType: string
+  selectedCapacityKw: number
+  pricing: PricingCalculation
+  subsidyDisclaimer: string | null
+  pricingDisclaimer: string | null
+}
+
+export interface Quotation {
+  id: string
+  leadId: string
+  selectedCapacityKw: number
+  selectedOptionType: string
+  status: QuotationStatus
+  createdAt: string
+  acceptedAt: string | null
+  snapshot: QuotationSnapshot
+}

@@ -45,10 +45,13 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** The link shown on each lead card. Every lead gets one, so the bill page is always reachable. */
+/**
+ * The link shown on each lead card. While the bill is still needed it goes to the bill page,
+ * after that it opens the lead detail page (status, bill link and quotation).
+ */
 export function homeownerAction(status: LeadStatus, leadId: string): { to: string; label: string } {
-  const to = `/app/${leadId}/bill`
-  if (status === 'NEW') return { to, label: 'Upload bill' }
-  if (status === 'BILL_UPLOADED') return { to, label: 'Review bill' }
-  return { to, label: 'View bill' }
+  if (status === 'NEW') return { to: `/app/${leadId}/bill`, label: 'Upload bill' }
+  if (status === 'BILL_UPLOADED') return { to: `/app/${leadId}/bill`, label: 'Review bill' }
+  if (status === 'QUOTED') return { to: `/app/${leadId}`, label: 'View quotation' }
+  return { to: `/app/${leadId}`, label: 'View details' }
 }

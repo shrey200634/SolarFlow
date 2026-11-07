@@ -81,14 +81,15 @@ export default function HomeownerHome() {
           {data.content.map((lead) => {
             const s = homeownerStatus[lead.status]
             const action = homeownerAction(lead.status, lead.id)
+            const detailsPath = `/app/${lead.id}`
 
             return (
               <li key={lead.id}>
                 <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">
+                    <Link to={detailsPath} className="font-medium hover:text-brand hover:underline">
                       {roofTypeLabel[lead.roofType]} · {lead.roofAreaSqft} sq ft
-                    </p>
+                    </Link>
 
                     <p className="mt-0.5 text-sm text-muted">
                       {ownershipLabel[lead.ownership]} · Pincode {lead.pincode} · Bill{' '}
@@ -100,6 +101,15 @@ export default function HomeownerHome() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={s.tone}>{s.label}</Badge>
+
+                    {action.to !== detailsPath && (
+                      <Link
+                        to={detailsPath}
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-line bg-surface px-3.5 text-sm font-medium hover:bg-canvas"
+                      >
+                        Details
+                      </Link>
+                    )}
 
                     <Link
                       to={action.to}
