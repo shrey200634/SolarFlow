@@ -10,6 +10,7 @@ import BillUploadPage from './pages/BillUploadPage'
 import StaffHome from './pages/StaffHome'
 import NotFoundPage from './pages/NotFoundPage'
 import LeadDetailPage from './pages/LeadDetailPage'
+import StaffLeadDetailPage from './pages/StaffLeadDetailPage'
 
 
 export default function App() {
