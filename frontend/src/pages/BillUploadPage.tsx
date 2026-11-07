@@ -13,18 +13,11 @@ import { Button } from '../components/common/Button'
 import { Spinner } from '../components/common/Loading'
 import { Alert } from '../components/feedback/Alert'
 import { useToast } from '../components/feedback/toast-context'
+import { formatFileSize, formatINR, roofTypeLabel } from '../features/leads/labels'
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024
 
-const ALLOWED_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-]
-
-function formatFileSize(bytes: number) {
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
+const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 
 function statusLabel(status: LeadDocument['status']) {
   const labels: Record<LeadDocument['status'], string> = {
@@ -77,13 +70,9 @@ export default function BillUploadPage() {
         fileInputRef.current.value = ''
       }
 
-      await queryClient.invalidateQueries({
-        queryKey: ['documents', leadId],
-      })
-
-      await queryClient.invalidateQueries({
-        queryKey: ['leads'],
-      })
+      await queryClient.invalidateQueries({ queryKey: ['documents', leadId] })
+      await queryClient.invalidateQueries({ queryKey: ['lead', leadId] })
+      await queryClient.invalidateQueries({ queryKey: ['leads'] })
     },
     onError: (error) => {
       toast.error(parseError(error).message)
@@ -122,9 +111,7 @@ export default function BillUploadPage() {
     return (
       <Card className="p-4">
         <Alert tone="error" title="Could not load this application">
-          {leadQuery.isError
-            ? parseError(leadQuery.error).message
-            : 'Application not found.'}
+          {leadQuery.isError ? parseError(leadQuery.error).message : 'Application not found.'}
         </Alert>
         <Link to="/app" className="mt-4 inline-flex text-sm text-brand hover:underline">
           Back to applications
@@ -137,10 +124,7 @@ export default function BillUploadPage() {
 
   return (
     <>
-      <Link
-        to="/app"
-        className="mb-5 inline-flex items-center gap-2 text-sm text-muted hover:text-brand"
-      >
+      <Link to="/app" className="mb-5 inline-flex items-center gap-2 text-sm text-muted hover:text-brand">
         <ArrowLeft size={16} />
         Back to applications
       </Link>
@@ -156,14 +140,12 @@ export default function BillUploadPage() {
         <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <p className="text-muted">Roof type</p>
-            <p className="font-medium">{lead.roofType.replaceAll('_', ' ')}</p>
+            <p className="font-medium">{roofTypeLabel[lead.roofType]}</p>
           </div>
 
           <div>
             <p className="text-muted">Monthly electricity bill</p>
-            <p className="font-medium">
-              ₹{Number(lead.declaredMonthlyBill).toLocaleString('en-IN')}
-            </p>
+            <p className="font-medium">{formatINR(lead.declaredMonthlyBill)}</p>
           </div>
 
           <div>
@@ -185,9 +167,7 @@ export default function BillUploadPage() {
           </span>
           <div>
             <h2 className="font-semibold">Your electricity bill</h2>
-            <p className="text-sm text-muted">
-              PDF, JPG or PNG · Maximum 8 MB
-            </p>
+            <p className="text-sm text-muted">PDF, JPG or PNG · Maximum 8 MB</p>
           </div>
         </div>
 
@@ -197,14 +177,8 @@ export default function BillUploadPage() {
           className="mt-5 flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-line bg-canvas px-4 py-9 text-center transition-colors hover:border-brand"
         >
           <UploadCloud size={28} className="text-brand" />
-
-          <span className="mt-3 text-sm font-medium">
-            Choose an electricity bill
-          </span>
-
-          <span className="mt-1 text-xs text-muted">
-            Select a file from your device
-          </span>
+          <span className="mt-3 text-sm font-medium">Choose an electricity bill</span>
+          <span className="mt-1 text-xs text-muted">Select a file from your device</span>
         </button>
 
         <input
@@ -219,9 +193,7 @@ export default function BillUploadPage() {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-line p-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{selectedFile.name}</p>
-              <p className="text-xs text-muted">
-                {formatFileSize(selectedFile.size)}
-              </p>
+              <p className="text-xs text-muted">{formatFileSize(selectedFile.size)}</p>
             </div>
 
             <button
@@ -245,16 +217,16 @@ export default function BillUploadPage() {
           </div>
         )}
 
-       <div className="mt-5">
-  <button
-    type="button"
-    disabled={!selectedFile || uploadMutation.isPending}
-    onClick={() => uploadMutation.mutate()}
-    className="flex w-full items-center justify-center rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    {uploadMutation.isPending ? 'Uploading...' : 'Upload bill'}
-  </button>
-</div>
+        <div className="mt-5">
+          <Button
+            className="w-full"
+            disabled={!selectedFile}
+            loading={uploadMutation.isPending}
+            onClick={() => uploadMutation.mutate()}
+          >
+            Upload bill
+          </Button>
+        </div>
       </Card>
 
       <Card className="mt-5 p-4 sm:p-5">
@@ -267,33 +239,22 @@ export default function BillUploadPage() {
             <Alert tone="error" title="Could not load uploaded documents">
               {parseError(documentsQuery.error).message}
             </Alert>
-            <Button
-              variant="secondary"
-              className="mt-3"
-              onClick={() => documentsQuery.refetch()}
-            >
+            <Button variant="secondary" className="mt-3" onClick={() => documentsQuery.refetch()}>
               Retry
             </Button>
           </div>
         )}
 
         {documentsQuery.data && documentsQuery.data.length === 0 && (
-          <p className="mt-3 text-sm text-muted">
-            No bill has been uploaded for this application yet.
-          </p>
+          <p className="mt-3 text-sm text-muted">No bill has been uploaded for this application yet.</p>
         )}
 
         {documentsQuery.data && documentsQuery.data.length > 0 && (
           <div className="mt-3 divide-y divide-line">
             {documentsQuery.data.map((document) => (
-              <div
-                key={document.id}
-                className="flex flex-wrap items-center justify-between gap-3 py-3"
-              >
+              <div key={document.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
-                  <p className="text-sm font-medium">
-                    Electricity bill
-                  </p>
+                  <p className="text-sm font-medium">Electricity bill</p>
                   <p className="text-xs text-muted">
                     {formatFileSize(document.sizeBytes)} ·{' '}
                     {new Date(document.createdAt).toLocaleDateString('en-IN')}

@@ -1,6 +1,6 @@
-
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 
 import { leadsApi } from '../api/leads.api'
 import { parseError } from '../api/client'
@@ -15,20 +15,15 @@ import { Alert } from '../components/feedback/Alert'
 
 import {
   formatDate,
+  formatINR,
+  homeownerAction,
   homeownerStatus,
   ownershipLabel,
   roofTypeLabel,
 } from '../features/leads/labels'
 
 export default function HomeownerHome() {
-  const {
-    data,
-    isPending,
-    isError,
-    error,
-    refetch,
-    isFetching,
-  } = useQuery({
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['leads', 'mine'],
     queryFn: () => leadsApi.list({ size: 50 }),
   })
@@ -38,6 +33,14 @@ export default function HomeownerHome() {
       <PageHeader
         title="My applications"
         description="Your solar enquiries and where each one stands."
+        actions={
+          <Link
+            to="/app/new"
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-brand px-3.5 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
+          >
+            <Plus size={16} /> New enquiry
+          </Link>
+        }
       />
 
       {isPending && (
@@ -49,19 +52,11 @@ export default function HomeownerHome() {
 
       {isError && (
         <Card className="p-4">
-          <Alert
-            tone="error"
-            title="We could not load your applications"
-          >
+          <Alert tone="error" title="We could not load your applications">
             {parseError(error).message}
           </Alert>
 
-          <Button
-            variant="secondary"
-            className="mt-3"
-            onClick={() => refetch()}
-            loading={isFetching}
-          >
+          <Button variant="secondary" className="mt-3" onClick={() => refetch()} loading={isFetching}>
             Try again
           </Button>
         </Card>
@@ -71,7 +66,12 @@ export default function HomeownerHome() {
         <Card>
           <EmptyState
             title="No applications yet"
-            description="Once you submit a solar enquiry it appears here, with its progress."
+            description="Start a solar enquiry and track its progress here."
+            action={
+              <Link to="/app/new" className="text-sm font-medium text-brand hover:underline">
+                Start your first enquiry
+              </Link>
+            }
           />
         </Card>
       )}
@@ -80,6 +80,7 @@ export default function HomeownerHome() {
         <ul className="space-y-3">
           {data.content.map((lead) => {
             const s = homeownerStatus[lead.status]
+            const action = homeownerAction(lead.status, lead.id)
 
             return (
               <li key={lead.id}>
@@ -90,25 +91,21 @@ export default function HomeownerHome() {
                     </p>
 
                     <p className="mt-0.5 text-sm text-muted">
-                      {ownershipLabel[lead.ownership]} · Pincode {lead.pincode} ·{' '}
-                      {formatDate(lead.createdAt)}
+                      {ownershipLabel[lead.ownership]} · Pincode {lead.pincode} · Bill{' '}
+                      {formatINR(lead.declaredMonthlyBill)}/month · {formatDate(lead.createdAt)}
                     </p>
 
-                    <p className="mt-2 text-sm">
-                      {s.hint}
-                    </p>
+                    <p className="mt-2 text-sm">{s.hint}</p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={s.tone}>
-                      {s.label}
-                    </Badge>
+                    <Badge tone={s.tone}>{s.label}</Badge>
 
                     <Link
-                      to={`/app/${lead.id}/bill`}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
+                      to={action.to}
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-3.5 text-sm font-medium text-white transition-colors hover:bg-brand-hover"
                     >
-                     <span>Upload electricity bill</span>
+                      {action.label}
                     </Link>
                   </div>
                 </Card>

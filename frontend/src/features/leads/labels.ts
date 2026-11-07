@@ -35,3 +35,20 @@ export const homeownerStatus: Record<LeadStatus, { label: string; hint: string; 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
+export function formatINR(value: number | string): string {
+  return `₹${Number(value).toLocaleString('en-IN')}`
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** The link shown on each lead card. Every lead gets one, so the bill page is always reachable. */
+export function homeownerAction(status: LeadStatus, leadId: string): { to: string; label: string } {
+  const to = `/app/${leadId}/bill`
+  if (status === 'NEW') return { to, label: 'Upload bill' }
+  if (status === 'BILL_UPLOADED') return { to, label: 'Review bill' }
+  return { to, label: 'View bill' }
+}

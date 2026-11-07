@@ -5,13 +5,13 @@ import { homeownerNav, staffNav } from './layouts/nav'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import HomeownerHome from './pages/HomeownerHome'
-import StaffHome from './pages/StaffHome'
+import NewEnquiryPage from './pages/NewEnquiryPage'
 import BillUploadPage from './pages/BillUploadPage'
+import StaffHome from './pages/StaffHome'
 import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
   return (
-    
     <Routes>
       <Route element={<GuestOnly />}>
         <Route path="/login" element={<LoginPage />} />
@@ -19,11 +19,12 @@ export default function App() {
       </Route>
 
       <Route element={<RequireAuth roles={['HOMEOWNER']} />}>
-  <Route path="/app" element={<AppShell nav={homeownerNav} />}>
-    <Route index element={<HomeownerHome />} />
-    <Route path=":leadId/bill" element={<BillUploadPage />} />
-  </Route>
-</Route>
+        <Route path="/app" element={<AppShell nav={homeownerNav} />}>
+          <Route index element={<HomeownerHome />} />
+          <Route path="new" element={<NewEnquiryPage />} />
+          <Route path=":leadId/bill" element={<BillUploadPage />} />
+        </Route>
+      </Route>
 
       {/* ADMIN is allowed here too: every sales endpoint accepts ADMIN. */}
       <Route element={<RequireAuth roles={['SALES', 'ADMIN']} />}>
@@ -35,6 +36,5 @@ export default function App() {
       <Route path="/" element={<RoleRedirect />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
-    
   )
 }

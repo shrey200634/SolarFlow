@@ -70,3 +70,17 @@ export interface PageResponse<T> {
   totalElements: number
   totalPages: number
 }
+
+export interface CreateLeadRequest {
+  ownership: Ownership
+  roofType: RoofType
+  roofAreaSqft: number
+  declaredMonthlyBill: number
+  pincode: string
+  phone: string
+}
+
+export interface PincodeAvailability {
+  pincode: string
+  serviceable: boolean
+}
