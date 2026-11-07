@@ -55,3 +55,18 @@ export function homeownerAction(status: LeadStatus, leadId: string): { to: strin
   if (status === 'QUOTED') return { to: `/app/${leadId}`, label: 'View quotation' }
   return { to: `/app/${leadId}`, label: 'View details' }
 }
+
+/** Internal stage names for staff. Homeowners never see these. */
+export const staffStatus: Record<LeadStatus, { label: string; tone: Tone }> = {
+  NEW: { label: 'New', tone: 'neutral' },
+  BILL_UPLOADED: { label: 'Bill uploaded', tone: 'warning' },
+  BILL_CONFIRMED: { label: 'Bill confirmed', tone: 'info' },
+  QUALIFIED: { label: 'Qualified', tone: 'info' },
+  SALES_CALL_PENDING: { label: 'Call pending', tone: 'warning' },
+  SURVEY_RECOMMENDED: { label: 'Survey recommended', tone: 'success' },
+  QUOTED: { label: 'Quoted', tone: 'info' },
+  ACCEPTED: { label: 'Accepted', tone: 'success' },
+  LOST: { label: 'Lost', tone: 'danger' },
+}
+
+export const leadStatuses = Object.keys(staffStatus) as LeadStatus[]

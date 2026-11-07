@@ -13,4 +13,4 @@ export const homeownerNav: NavItem[] = [
   { to: '/app/new', label: 'New enquiry', icon: PlusCircle },
 ]
 
-export const staffNav: NavItem[] = [{ to: '/staff', label: 'Overview', icon: LayoutDashboard, end: true }]
+export const staffNav: NavItem[] = [{ to: '/staff', label: 'Leads', icon: LayoutDashboard, end: true }]

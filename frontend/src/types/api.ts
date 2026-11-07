@@ -121,3 +121,64 @@ export interface Quotation {
   acceptedAt: string | null
   snapshot: QuotationSnapshot
 }
+
+// ---- Staff: qualification, recommendations (match backend DTOs) ----
+export type NextAction = 'SURVEY_RECOMMENDED' | 'SALES_CALL_PENDING'
+
+export interface QualificationReason {
+  code: string
+  points: number
+  maxPoints: number
+  passed: boolean
+  text: string
+}
+
+export interface QualificationGateResult {
+  code: string
+  triggered: boolean
+  text: string
+}
+
+export interface QualificationResult {
+  id: string
+  leadId: string
+  score: number
+  nextAction: NextAction
+  ruleVersion: string
+  rules: QualificationReason[]
+  gates: QualificationGateResult[]
+  createdAt: string
+}
+
+export interface SolarOption {
+  type: string // RECOMMENDED | ECONOMY | MAXIMUM
+  capacityKw: number
+  estimatedYearlyGeneration: number
+}
+
+export interface SolarRecommendation {
+  monthlyUnits: number
+  roofAreaSqft: number
+  sanctionedLoadKw: number | null
+  usageLimitKw: number
+  roofLimitKw: number
+  recommendedCapacityKw: number
+  limitingFactor: string
+  viable: boolean
+  message: string | null
+  options: SolarOption[]
+}
+
+export interface LeadStats {
+  total: number
+  byStatus: Partial<Record<LeadStatus, number>>
+}
+
+export interface LeadListParams {
+  status?: LeadStatus
+  pincode?: string
+  q?: string
+  assignee?: string
+  page?: number
+  size?: number
+}
