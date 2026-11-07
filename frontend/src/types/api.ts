@@ -97,7 +97,7 @@ export interface PricingCalculation {
   annualGenerationUnits: number
   electricityTariffPerUnit: number
   estimatedAnnualSavings: number
-  estimatedPaybackYears: number
+  estimatedPaybackYears: number | null
   subsidyEstimated: boolean
   calculationDate: string
 }
@@ -181,4 +181,84 @@ export interface LeadListParams {
   assignee?: string
   page?: number
   size?: number
+}
+
+// ---- Lead update (staff) ----
+export interface UpdateLeadRequest {
+  assignedTo?: string
+  status?: LeadStatus // backend only allows LOST, or LOST → SALES_CALL_PENDING (reopen)
+  ownership?: Ownership
+  roofType?: RoofType
+  roofAreaSqft?: number
+}
+
+export interface StaffUser { id: string; fullName: string; email: string; role: Role }
+
+// ---- Projects ----
+export type ProjectStatus = 'ADVANCE_PAID' | 'INSTALLATION_SCHEDULED' | 'INSTALLED' | 'SUBSIDY_CREDITED'
+
+export interface ProjectHistoryEntry {
+  fromStatus: ProjectStatus | null
+  toStatus: ProjectStatus
+  note: string | null // null for homeowners: staff notes stay internal
+  changedAt: string
+}
+
+export interface Project {
+  id: string
+  quotationId: string
+  leadId: string
+  status: ProjectStatus
+  capacityKw: number
+  netSystemCost: number
+  advanceAmount: number
+  statusLink: string | null // "/api/v1/status/{token}", null when revoked
+  createdAt: string
+  updatedAt: string
+  history: ProjectHistoryEntry[]
+}
+
+export interface PublicProjectStatus {
+  currentStatus: ProjectStatus
+  capacityKw: number
+  startedAt: string
+  lastUpdatedAt: string
+  timeline: { status: ProjectStatus; at: string }[]
+}
+
+// ---- Admin ----
+export interface ServiceablePincode { id: string; pincode: string; areaName: string | null; active: boolean; createdAt: string }
+
+export interface PricingRule {
+  id: string
+  pricePerKw: number
+  electricityTariffPerUnit: number
+  effectiveFrom: string // "YYYY-MM-DD"
+  effectiveTo: string | null
+  active: boolean
+}
+export interface CreatePricingRuleRequest {
+  pricePerKw: number
+  electricityTariffPerUnit: number
+  effectiveFrom: string
+  effectiveTo?: string | null
+}
+
+export interface SubsidyRule {
+  id: string
+  subsidyPerKwFirstTwoKw: number
+  subsidyForThirdKw: number
+  maximumSubsidy: number
+  effectiveFrom: string
+  effectiveTo: string | null
+  active: boolean
+  estimated: boolean
+}
+export interface CreateSubsidyRuleRequest {
+  subsidyPerKwFirstTwoKw: number
+  subsidyForThirdKw: number
+  maximumSubsidy: number
+  effectiveFrom: string
+  effectiveTo?: string | null
+  estimated: boolean
 }

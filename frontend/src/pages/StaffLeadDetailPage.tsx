@@ -11,6 +11,8 @@ import { Spinner } from '../components/common/Loading'
 import { Alert } from '../components/feedback/Alert'
 import { QualificationPanel } from '../features/staff/QualificationPanel'
 import { SizingPanel } from '../features/staff/SizingPanel'
+import { QuotationBuilder } from '../features/staff/QuotationBuilder'
+import { LeadEditPanel } from '../features/staff/LeadEditPanel'
 import {
   formatDate,
   formatINR,
@@ -88,6 +90,18 @@ export default function StaffLeadDetailPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <QualificationPanel leadId={lead.id} />
         <SizingPanel leadId={lead.id} />
+      </div>
+
+      <div className="mt-5">
+        <QuotationBuilder leadId={lead.id} />
+      </div>
+
+      <div className="mt-5">
+        {/* key: resets the form fields whenever the saved lead changes */}
+        <LeadEditPanel
+          key={`${lead.id}-${lead.status}-${lead.roofAreaSqft}-${lead.roofType}-${lead.ownership}-${lead.assignedToId}`}
+          lead={lead}
+        />
       </div>
     </>
   )

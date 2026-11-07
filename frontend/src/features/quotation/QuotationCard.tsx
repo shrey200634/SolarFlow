@@ -83,10 +83,14 @@ export function QuotationCard({ quotation, canAccept }: { quotation: Quotation; 
         </Button>
       </div>
 
+      {/* The story first: size (title) → cost after subsidy → payback → savings */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Stat label="Estimated yearly savings" value={formatINR(Math.round(pricing.estimatedAnnualSavings))} />
-        <Stat label="Payback period" value={`${pricing.estimatedPaybackYears} years`} />
-        <Stat label="Yearly generation" value={`${Math.round(pricing.annualGenerationUnits).toLocaleString('en-IN')} units`} />
+        <Stat label="You pay after subsidy" value={formatINR(Math.round(pricing.netSystemCost))} />
+        <Stat
+          label="Pays for itself in"
+          value={pricing.estimatedPaybackYears == null ? 'Not available' : `${pricing.estimatedPaybackYears} years`}
+        />
+        <Stat label="You save every year" value={formatINR(Math.round(pricing.estimatedAnnualSavings))} />
       </div>
 
       <dl className="mt-5 divide-y divide-line text-sm">
@@ -96,6 +100,10 @@ export function QuotationCard({ quotation, canAccept }: { quotation: Quotation; 
           value={`− ${formatINR(Math.round(pricing.subsidyAmount))}`}
         />
         <Row label="You pay (after subsidy)" value={formatINR(Math.round(pricing.netSystemCost))} strong />
+        <Row
+          label="Yearly generation (estimated)"
+          value={`${Math.round(pricing.annualGenerationUnits).toLocaleString('en-IN')} units`}
+        />
       </dl>
 
       {(quotation.snapshot.subsidyDisclaimer || quotation.snapshot.pricingDisclaimer) && (

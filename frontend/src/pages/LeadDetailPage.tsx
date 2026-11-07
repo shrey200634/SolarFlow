@@ -13,6 +13,7 @@ import { Spinner } from '../components/common/Loading'
 import { Alert } from '../components/feedback/Alert'
 import { QuotationCard } from '../features/quotation/QuotationCard'
 import { useDownloadQuotation } from '../features/quotation/useDownloadQuotation'
+import { HomeownerProjectCard } from '../features/projects/HomeownerProjectCard'
 import {
   formatDate,
   formatINR,
@@ -94,6 +95,7 @@ export default function LeadDetailPage() {
         </Link>
       </Card>
 
+      {lead.status === 'ACCEPTED' && <HomeownerProjectCard leadId={lead.id} />}
       {quotesQuery.isPending && <Spinner label="Checking for quotations..." />}
 
       {quotesQuery.isError && (
