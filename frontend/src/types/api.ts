@@ -30,3 +30,43 @@ export interface ApiError {
   message: string
   fieldErrors: Record<string, string> | null
 }
+// ---- Leads (matches backend lead.controller.LeadResponseDTO and common.PageResponse) ----
+export type Ownership = 'OWNED' | 'RENTED' | 'LEASED'
+export type RoofType = 'RCC_FLAT' | 'TIN_SHEET' | 'TILED' | 'ASBESTOS' | 'OTHER'
+export type LeadStatus =
+  | 'NEW'
+  | 'BILL_UPLOADED'
+  | 'BILL_CONFIRMED'
+  | 'QUALIFIED'
+  | 'SALES_CALL_PENDING'
+  | 'SURVEY_RECOMMENDED'
+  | 'QUOTED'
+  | 'ACCEPTED'
+  | 'LOST'
+
+export interface Lead {
+  id: string
+  ownerId: string
+  ownerName: string
+  ownerEmail: string
+  assignedToId: string | null
+  assignedToName: string | null
+  ownership: Ownership
+  roofType: RoofType
+  roofAreaSqft: number
+  declaredMonthlyBill: number
+  pincode: string
+  phone: string
+  status: LeadStatus
+  duplicate: boolean
+  qualificationScore: number | null // staff only: never show the score to homeowners
+  createdAt: string
+}
+
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Outlet } from 'react-router-dom'
 import { LogOut, Menu, Sun, X } from 'lucide-react'
 import { useAuth } from '../features/auth/auth-context'
 import { Button } from '../components/common/Button'
@@ -7,7 +7,7 @@ import type { NavItem } from './nav'
 
 const roleLabel = { HOMEOWNER: 'Homeowner', SALES: 'Sales', ADMIN: 'Admin' } as const
 
-function SidebarContent({ nav }: { nav: NavItem[] }) {
+function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () => void }) {
   const { user, logout } = useAuth()
   return (
     <div className="flex h-full flex-col">
@@ -24,6 +24,7 @@ function SidebarContent({ nav }: { nav: NavItem[] }) {
             key={to}
             to={to}
             end={end}
+            onClick={onNavigate}
             className={({ isActive }: { isActive: boolean }) =>
               `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm ${
                 isActive ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-canvas hover:text-ink'
@@ -50,9 +51,6 @@ function SidebarContent({ nav }: { nav: NavItem[] }) {
 
 export function AppShell({ nav }: { nav: NavItem[] }) {
   const [open, setOpen] = useState(false)
-  const { pathname } = useLocation()
-
-  useEffect(() => setOpen(false), [pathname])
 
   return (
     <div className="min-h-full">
@@ -74,7 +72,7 @@ export function AppShell({ nav }: { nav: NavItem[] }) {
             <button onClick={() => setOpen(false)} aria-label="Close menu" className="absolute right-2 top-3 rounded p-1.5 hover:bg-canvas">
               <X size={16} />
             </button>
-            <SidebarContent nav={nav} />
+            <SidebarContent nav={nav} onNavigate={() => setOpen(false)} />
           </aside>
         </div>
       )}
